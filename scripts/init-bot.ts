@@ -49,7 +49,7 @@ async function getBotInfo(token: string) {
 async function main() {
   try {
     console.log("Fetching bot information from Telegram...");
-    const botInfo = await getBotInfo(botToken);
+    const botInfo = await getBotInfo(botToken!);
     
     console.log(`Bot found: @${botInfo.username} (${botInfo.first_name})`);
     
@@ -63,7 +63,7 @@ async function main() {
       await prisma.botConfig.update({
         where: { id: existing.id },
         data: {
-          token: botToken,
+          token: botToken!,
           username: botInfo.username,
           isActive: true,
         },
@@ -73,7 +73,7 @@ async function main() {
       console.log("Creating new bot configuration...");
       await prisma.botConfig.create({
         data: {
-          token: botToken,
+          token: botToken!,
           username: botInfo.username,
           botId: botInfo.id.toString(),
           isActive: true,

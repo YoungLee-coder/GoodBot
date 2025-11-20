@@ -14,6 +14,7 @@ export default function SetupPage() {
 
   useEffect(() => {
     initializeDatabase()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const initializeDatabase = async () => {

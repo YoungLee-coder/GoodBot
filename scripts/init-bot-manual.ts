@@ -26,7 +26,7 @@ const prisma = new PrismaClient({ adapter: adapter as any });
 async function main() {
   try {
     // 从 token 中提取 bot ID (token 格式: botId:hash)
-    const botId = botToken.split(':')[0];
+    const botId = botToken!.split(':')[0];
     
     if (!botId || isNaN(Number(botId))) {
       throw new Error("Invalid bot token format. Expected format: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz");
@@ -49,7 +49,7 @@ async function main() {
       await prisma.botConfig.update({
         where: { id: existing.id },
         data: {
-          token: botToken,
+          token: botToken!,
           isActive: true,
         },
       });
@@ -58,7 +58,7 @@ async function main() {
       console.log("\nCreating new bot configuration...");
       await prisma.botConfig.create({
         data: {
-          token: botToken,
+          token: botToken!,
           username: username,
           botId: botId,
           isActive: true,

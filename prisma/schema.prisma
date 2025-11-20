@@ -1,0 +1,61 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model BotConfig {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  username   String
+  botId      String   @unique
+  webhookUrl String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Message {
+  id              String   @id @default(cuid())
+  messageId       String   // Telegram message ID
+  chatId          String   // Telegram chat ID
+  chatType        String   // 'private' | 'group' | 'supergroup'
+  senderId        String?  // Telegram user ID (null for sent messages)
+  senderUsername  String?
+  senderFirstName String?
+  text            String?
+  direction       String   // 'incoming' | 'outgoing'
+  status          String   @default("received") // 'received' | 'sent' | 'failed'
+  createdAt       DateTime @default(now())
+
+  @@index([chatId, createdAt])
+  @@index([direction])
+}
+
+model Group {
+  id          String    @id @default(cuid())
+  chatId      String    @unique // Telegram chat ID
+  title       String
+  type        String    // 'group' | 'supergroup'
+  memberCount Int?
+  joinedAt    DateTime  @default(now())
+  leftAt      DateTime?
+  isActive    Boolean   @default(true)
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String   // hashed
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

@@ -1,5 +1,136 @@
 # GoodBot - Telegram Bot 管理系统
 
+> 基于 Next.js 15 的现代化 Telegram Bot 管理平台
+
+## ✨ 特性
+
+- 🤖 **Bot 管理** - 配置和管理 Telegram Bot
+- 💬 **消息管理** - 查看和发送消息
+- 👥 **群组管理** - 管理 Bot 加入的群组
+- 🔐 **安全认证** - 基于 NextAuth.js 的安全登录
+- 📊 **数据统计** - 实时查看消息和群组统计
+- 🚀 **自动初始化** - 首次部署自动配置数据库
+- 🎨 **现代 UI** - 基于 shadcn/ui 的精美界面
+
+## 🚀 快速开始
+
+### 本地开发
+
+1. **克隆项目**
+   ```bash
+   git clone <your-repo-url>
+   cd goodbot
+   ```
+
+2. **安装依赖**
+   ```bash
+   pnpm install
+   ```
+
+3. **配置环境变量**
+   ```bash
+   cp .env.example .env.local
+   # 编辑 .env.local，填入你的配置
+   ```
+
+4. **启动开发服务器**
+   ```bash
+   pnpm dev
+   ```
+
+5. **访问应用**
+   - 打开 http://localhost:3000
+   - 首次访问会自动初始化数据库
+
+### Vercel 部署
+
+1. **推送到 GitHub**
+   ```bash
+   git push origin main
+   ```
+
+2. **在 Vercel 导入项目**
+   - 访问 https://vercel.com
+   - Import Git Repository
+   - 选择你的仓库
+
+3. **配置环境变量**
+   - 从 `.env.example` 复制所有变量
+   - 在 Vercel 项目设置中添加
+
+4. **部署完成后访问**
+   - 访问 `https://your-project.vercel.app/setup`
+   - 系统会自动初始化数据库
+   - 完成后跳转到登录页面
+
+详细部署步骤请查看 [VERCEL_DEPLOYMENT.md](./VERCEL_DEPLOYMENT.md)
+
+## 📖 文档
+
+- [部署指南](./VERCEL_DEPLOYMENT.md) - 完整的 Vercel 部署步骤
+- [本地开发](./docs/local-development.md) - 本地开发环境配置
+- [认证系统](./docs/authentication.md) - 认证和安全说明
+- [API 文档](./docs/) - API 接口文档
+
+## 🛠️ 技术栈
+
+- **框架**: Next.js 15 (App Router)
+- **语言**: TypeScript
+- **数据库**: PostgreSQL (Neon)
+- **ORM**: Prisma 7
+- **认证**: NextAuth.js v5
+- **UI**: shadcn/ui + Tailwind CSS
+- **Bot SDK**: grammY
+- **部署**: Vercel
+
+## 📝 环境变量
+
+必需的环境变量：
+
+```bash
+# 数据库
+DATABASE_URL=          # Neon 数据库连接字符串
+DIRECT_URL=           # 直连 URL（用于迁移）
+
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=   # Bot Token (从 @BotFather 获取)
+TELEGRAM_WEBHOOK_SECRET= # Webhook 密钥
+
+# NextAuth
+NEXTAUTH_URL=         # 应用 URL
+NEXTAUTH_SECRET=      # JWT 密钥
+AUTH_TRUST_HOST=true
+
+# 管理员
+ADMIN_EMAIL=          # 管理员邮箱
+ADMIN_PASSWORD=       # 管理员密码
+```
+
+## 🔒 安全
+
+- ✅ JWT 会话管理
+- ✅ CSRF 保护
+- ✅ API 速率限制
+- ✅ 输入验证
+- ✅ Webhook 签名验证
+- ✅ 环境变量加密
+
+## 📄 许可证
+
+MIT License
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 📧 联系
+
+如有问题，请提交 Issue。
+
+---
+
+Made with ❤️ using Next.js
+
 基于 Next.js 15 的 Telegram Bot 管理平台，提供 Web UI 界面来管理 Telegram Bot 的消息和群组。系统使用现代化技术栈，支持双向消息通信、群组管理和安全认证。
 
 ## 目录

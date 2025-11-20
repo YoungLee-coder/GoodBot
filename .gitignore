@@ -5,9 +5,12 @@
 /.pnp
 .pnp.js
 .yarn/install-state.gz
+.pnpm-store/
 
 # testing
 /coverage
+*.test.js.snap
+/.nyc_output
 
 # next.js
 /.next/
@@ -15,26 +18,89 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
 *.pem
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # local env files
-.env*.local
+# IMPORTANT: Never commit these files!
 .env
+.env*.local
+.env.development
+.env.test
+.env.production
+.env.production.local
 
 # vercel
 .vercel
+.vercel.json
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
 # prisma
-prisma/migrations
+# Keep schema and config, ignore generated files
+node_modules/.prisma/
+prisma/migrations/
+*.db
+*.db-journal
+
+# OS files
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+*.launch
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.temp/
+
+# Build artifacts
+.turbo/
+.swc/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Lock files (optional - uncomment if you want to ignore)
+# pnpm-lock.yaml
+# package-lock.json
+# yarn.lock

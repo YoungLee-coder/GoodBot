@@ -21,7 +21,14 @@ export const authConfig = {
                       nextUrl.pathname.startsWith("/api/messages") || 
                       nextUrl.pathname.startsWith("/api/groups");
       const isOnLogin = nextUrl.pathname.startsWith("/login");
+      const isOnSetup = nextUrl.pathname.startsWith("/setup");
+      const isOnInit = nextUrl.pathname.startsWith("/api/init");
       const isOnHome = nextUrl.pathname === "/";
+      
+      // Allow setup and init endpoints without auth
+      if (isOnSetup || isOnInit) {
+        return true;
+      }
       
       // Redirect home page based on auth status
       if (isOnHome) {

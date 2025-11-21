@@ -15,6 +15,59 @@ export async function getBot() {
 
     bot = new Bot(token);
 
+    // Command: /start
+    bot.command("start", async (ctx) => {
+        const adminChatIdStr = await getSetting("admin_chat_id");
+        const isAdmin = adminChatIdStr && parseInt(adminChatIdStr) === ctx.from?.id;
+
+        if (isAdmin) {
+            await ctx.reply(
+                "👋 Welcome back, Admin!\n\n" +
+                "You are already logged in. All messages from users will be forwarded to you.\n\n" +
+                "Reply to any forwarded message to respond to the user."
+            );
+        } else {
+            await ctx.reply(
+                "👋 Hello! I'm GoodBot.\n\n" +
+                "Send me a message and I'll forward it to my owner. " +
+                "You'll receive a reply if they respond.\n\n" +
+                "Feel free to send text, photos, or any media!"
+            );
+        }
+    });
+
+    // Command: /help
+    bot.command("help", async (ctx) => {
+        const adminChatIdStr = await getSetting("admin_chat_id");
+        const isAdmin = adminChatIdStr && parseInt(adminChatIdStr) === ctx.from?.id;
+
+        if (isAdmin) {
+            await ctx.reply(
+                "📚 *Admin Help*\n\n" +
+                "*Commands:*\n" +
+                "/start - Show welcome message\n" +
+                "/help - Show this help message\n" +
+                "/login <password> - Re-authenticate as admin\n\n" +
+                "*Usage:*\n" +
+                "• Reply to forwarded messages to respond to users\n" +
+                "• All user messages are automatically forwarded to you\n" +
+                "• Your replies are sent back to the original sender",
+                { parse_mode: "Markdown" }
+            );
+        } else {
+            await ctx.reply(
+                "📚 *Help*\n\n" +
+                "*How to use:*\n" +
+                "1. Send me any message\n" +
+                "2. Your message will be forwarded to the owner\n" +
+                "3. Wait for a response\n\n" +
+                "*Privacy:*\n" +
+                "The owner can see your name and message content, but your Telegram account remains private.",
+                { parse_mode: "Markdown" }
+            );
+        }
+    });
+
     // Command: /login <password>
     bot.command("login", async (ctx) => {
         const password = ctx.match;
@@ -143,9 +196,16 @@ export async function getBot() {
                     // Send a small info message replying to the copy
                     await ctx.api.sendMessage(adminChatId, caption, { reply_to_message_id: copyMsg.message_id });
 
+                    // Send confirmation to user
+                    await ctx.reply("✅ Your message has been forwarded to the owner. Please wait for a response.");
+
                 } catch (e) {
                     console.error("Failed to forward to admin", e);
+                    await ctx.reply("❌ Sorry, I couldn't forward your message. Please try again later.");
                 }
+            } else {
+                // Admin not set up yet
+                await ctx.reply("⚠️ The bot is not fully configured yet. Please ask the owner to set up the admin account first.");
             }
         }
     });

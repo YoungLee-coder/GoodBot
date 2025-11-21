@@ -177,24 +177,33 @@ export async function getBot() {
         } else {
             // IS STRANGER
             if (adminChatId) {
-                // Copy message to Admin
+                // Send message to Admin with user info
                 try {
                     const name = ctx.from.first_name + (ctx.from.last_name ? " " + ctx.from.last_name : "");
                     const username = ctx.from.username ? ` (@${ctx.from.username})` : "";
-                    const caption = `📩 From: ${name}${username}\nID: ${senderId}`;
+                    const userInfo = `👤 ${name}${username} (ID: ${senderId})`;
 
-                    // Strategy: Send Copy.
-                    const copyMsg = await ctx.copyMessage(adminChatId);
+                    // For text messages, send with user info prefix
+                    let sentMsg;
+                    if (ctx.message.text) {
+                        sentMsg = await ctx.api.sendMessage(
+                            adminChatId,
+                            `${userInfo}\n${"─".repeat(40)}\n${ctx.message.text}`
+                        );
+                    } else {
+                        // For media, copy then add info as a reply
+                        sentMsg = await ctx.copyMessage(adminChatId);
+                        await ctx.api.sendMessage(adminChatId, userInfo, {
+                            reply_to_message_id: sentMsg.message_id
+                        });
+                    }
 
                     // Save mapping
                     await db.insert(messageMaps).values({
-                        adminMessageId: copyMsg.message_id,
+                        adminMessageId: sentMsg.message_id,
                         userMessageId: ctx.message.message_id,
                         userChatId: chatId,
                     });
-
-                    // Send a small info message replying to the copy
-                    await ctx.api.sendMessage(adminChatId, caption, { reply_to_message_id: copyMsg.message_id });
 
                     // Send confirmation to user
                     await ctx.reply("✅ Your message has been forwarded to the owner. Please wait for a response.");

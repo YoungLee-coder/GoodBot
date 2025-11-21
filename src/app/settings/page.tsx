@@ -55,6 +55,42 @@ export default function SettingsPage() {
                     </form>
                 </CardContent>
             </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Telegram Webhook</CardTitle>
+                    <CardDescription>Configure webhook for receiving messages (required for Vercel deployment)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                            After deploying to Vercel, click this button to tell Telegram where to send messages.
+                        </p>
+                        <Button
+                            onClick={async () => {
+                                setLoading(true);
+                                try {
+                                    const res = await fetch('/api/setup-webhook');
+                                    const data = await res.json();
+                                    if (data.success) {
+                                        alert(`✅ Webhook set successfully!\n\nURL: ${data.webhookUrl}\n\nYour bot is now ready to receive messages.`);
+                                    } else {
+                                        alert(`❌ Failed: ${data.error}`);
+                                    }
+                                } catch (e: any) {
+                                    alert(`❌ Error: ${e.message}`);
+                                } finally {
+                                    setLoading(false);
+                                }
+                            }}
+                            disabled={loading}
+                            variant="outline"
+                        >
+                            Setup Webhook
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

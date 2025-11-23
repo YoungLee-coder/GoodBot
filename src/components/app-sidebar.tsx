@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, MessageSquare, Users, Settings, LogOut } from "lucide-react"
+import { Home, MessageSquare, Users, Settings } from "lucide-react"
 import {
     Sidebar,
     SidebarContent,
@@ -12,33 +12,35 @@ import {
     SidebarMenuItem,
     SidebarFooter,
 } from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-
-// Menu items.
-const items = [
-    {
-        title: "Dashboard",
-        url: "/",
-        icon: Home,
-    },
-    {
-        title: "Chat",
-        url: "/chat",
-        icon: MessageSquare,
-    },
-    {
-        title: "Groups",
-        url: "/groups",
-        icon: Users,
-    },
-    {
-        title: "Settings",
-        url: "/settings",
-        icon: Settings,
-    },
-]
+import { LanguageSwitcher } from "./language-switcher"
+import { useLanguage } from "./language-provider"
 
 export function AppSidebar() {
+    const { t } = useLanguage();
+
+    const items = [
+        {
+            title: t.nav.dashboard,
+            url: "/",
+            icon: Home,
+        },
+        {
+            title: t.nav.chat,
+            url: "/chat",
+            icon: MessageSquare,
+        },
+        {
+            title: t.nav.groups,
+            url: "/groups",
+            icon: Users,
+        },
+        {
+            title: t.nav.settings,
+            url: "/settings",
+            icon: Settings,
+        },
+    ];
+
     return (
         <Sidebar>
             <SidebarContent>
@@ -63,10 +65,9 @@ export function AppSidebar() {
             <SidebarFooter>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <SidebarMenuButton>
-                            <LogOut />
-                            <span>Logout</span>
-                        </SidebarMenuButton>
+                        <div className="flex items-center justify-center p-2">
+                            <LanguageSwitcher />
+                        </div>
                     </SidebarMenuItem>
                 </SidebarMenu>
             </SidebarFooter>

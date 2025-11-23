@@ -4,6 +4,7 @@ import "./globals.css";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { isAppInitialized } from "@/lib/settings";
+import { LanguageProvider } from "@/components/language-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,19 +36,21 @@ export default async function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {initialized ? (
-          <SidebarProvider>
-            <AppSidebar />
-            <main className="w-full">
-              <div className="p-4">
-                <SidebarTrigger />
-                {children}
-              </div>
-            </main>
-          </SidebarProvider>
-        ) : (
-          <main>{children}</main>
-        )}
+        <LanguageProvider>
+          {initialized ? (
+            <SidebarProvider>
+              <AppSidebar />
+              <main className="w-full">
+                <div className="p-4">
+                  <SidebarTrigger />
+                  {children}
+                </div>
+              </main>
+            </SidebarProvider>
+          ) : (
+            <main>{children}</main>
+          )}
+        </LanguageProvider>
       </body>
     </html>
   );

@@ -6,11 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { initializeApp } from "./actions";
 import { useState, useEffect } from "react";
+import { useLanguage } from "@/components/language-provider";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 export default function SetupPage() {
     const [webhookUrl, setWebhookUrl] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState("");
+    const { t } = useLanguage();
 
     useEffect(() => {
         // 自动填充当前域名作为 webhook URL
@@ -25,35 +28,38 @@ export default function SetupPage() {
         try {
             await initializeApp(formData);
         } catch (err: any) {
-            setError(err.message || "初始化失败，请检查输入");
+            setError(err.message || t.setup.initFailed.replace('{error}', ''));
             setIsSubmitting(false);
         }
     }
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-background">
+            <div className="absolute top-4 right-4">
+                <LanguageSwitcher />
+            </div>
             <Card className="w-[500px]">
                 <CardHeader>
-                    <CardTitle>GoodBot 初始化</CardTitle>
-                    <CardDescription>配置你的 Telegram Bot</CardDescription>
+                    <CardTitle>{t.setup.title}</CardTitle>
+                    <CardDescription>{t.setup.description}</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form action={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="botToken">Telegram Bot Token</Label>
+                            <Label htmlFor="botToken">{t.setup.botToken}</Label>
                             <Input 
                                 id="botToken" 
                                 name="botToken" 
-                                placeholder="123456:ABC-DEF..." 
+                                placeholder={t.setup.botTokenPlaceholder}
                                 required 
                                 disabled={isSubmitting}
                             />
                             <p className="text-xs text-muted-foreground">
-                                从 @BotFather 获取你的 Bot Token
+                                {t.setup.botTokenHelp}
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="adminPassword">管理员密码</Label>
+                            <Label htmlFor="adminPassword">{t.setup.adminPassword}</Label>
                             <Input 
                                 id="adminPassword" 
                                 name="adminPassword" 
@@ -62,21 +68,21 @@ export default function SetupPage() {
                                 disabled={isSubmitting}
                             />
                             <p className="text-xs text-muted-foreground">
-                                用于在 Telegram 中登录 Bot（/login 命令）
+                                {t.setup.adminPasswordHelp}
                             </p>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="webhookUrl">Webhook URL</Label>
+                            <Label htmlFor="webhookUrl">{t.setup.webhookUrl}</Label>
                             <Input 
                                 id="webhookUrl" 
                                 name="webhookUrl" 
                                 value={webhookUrl}
                                 onChange={(e) => setWebhookUrl(e.target.value)}
-                                placeholder="https://your-domain.com" 
+                                placeholder={t.setup.webhookUrlPlaceholder}
                                 disabled={isSubmitting}
                             />
                             <p className="text-xs text-muted-foreground">
-                                你的应用部署地址（本地开发可留空）
+                                {t.setup.webhookUrlHelp}
                             </p>
                         </div>
                         {error && (
@@ -85,7 +91,7 @@ export default function SetupPage() {
                             </div>
                         )}
                         <Button type="submit" className="w-full" disabled={isSubmitting}>
-                            {isSubmitting ? "初始化中..." : "开始初始化"}
+                            {isSubmitting ? t.setup.initializing : t.setup.initialize}
                         </Button>
                     </form>
                 </CardContent>

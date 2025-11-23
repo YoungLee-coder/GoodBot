@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, boolean, jsonb, bigint } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, boolean, jsonb, bigint, integer } from "drizzle-orm/pg-core";
 
 export const settings = pgTable("settings", {
     key: text("key").primaryKey(),
@@ -37,5 +37,27 @@ export const messageMaps = pgTable("message_maps", {
     adminMessageId: bigint("admin_message_id", { mode: "number" }).notNull(), // ID of the message sent TO Admin
     userMessageId: bigint("user_message_id", { mode: "number" }).notNull(), // ID of the original message FROM User
     userChatId: bigint("user_chat_id", { mode: "number" }).notNull(), // The User's Chat ID
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const lotteries = pgTable("lotteries", {
+    id: serial("id").primaryKey(),
+    groupId: bigint("group_id", { mode: "number" }).notNull(), // Telegram Chat ID
+    title: text("title").notNull(), // 抽奖标题
+    description: text("description"), // 抽奖描述
+    winnerCount: integer("winner_count").notNull().default(1), // 中奖人数
+    creatorId: bigint("creator_id", { mode: "number" }).notNull(), // 创建者 User ID
+    messageId: bigint("message_id", { mode: "number" }), // 抽奖消息 ID
+    status: text("status").notNull().default("active"), // active, ended
+    endTime: timestamp("end_time"), // 结束时间
+    createdAt: timestamp("created_at").defaultNow(),
+    endedAt: timestamp("ended_at"), // 实际结束时间
+});
+
+export const lotteryParticipants = pgTable("lottery_participants", {
+    id: serial("id").primaryKey(),
+    lotteryId: integer("lottery_id").notNull(), // 关联的抽奖 ID
+    userId: bigint("user_id", { mode: "number" }).notNull(), // 参与者 User ID
+    isWinner: boolean("is_winner").default(false), // 是否中奖
     createdAt: timestamp("created_at").defaultNow(),
 });

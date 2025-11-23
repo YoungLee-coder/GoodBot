@@ -4,7 +4,9 @@ import "./globals.css";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { isAppInitialized } from "@/lib/settings";
+import { isAuthenticated } from "@/lib/auth";
 import { LanguageProvider } from "@/components/language-provider";
+import { redirect } from "next/navigation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,26 +32,48 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const initialized = await isAppInitialized();
+  const authenticated = await isAuthenticated();
 
+  // 如果未初始化，只允许访问 setup 页面
+  if (!initialized) {
+    return (
+      <html lang="en">
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+          <LanguageProvider>
+            <main>{children}</main>
+          </LanguageProvider>
+        </body>
+      </html>
+    );
+  }
+
+  // 如果已初始化但未登录，显示登录页面
+  if (!authenticated) {
+    return (
+      <html lang="en">
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+          <LanguageProvider>
+            <main>{children}</main>
+          </LanguageProvider>
+        </body>
+      </html>
+    );
+  }
+
+  // 已登录，显示完整界面
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <LanguageProvider>
-          {initialized ? (
-            <SidebarProvider>
-              <AppSidebar />
-              <main className="w-full">
-                <div className="p-4">
-                  <SidebarTrigger />
-                  {children}
-                </div>
-              </main>
-            </SidebarProvider>
-          ) : (
-            <main>{children}</main>
-          )}
+          <SidebarProvider>
+            <AppSidebar />
+            <main className="w-full">
+              <div className="p-4">
+                <SidebarTrigger />
+                {children}
+              </div>
+            </main>
+          </SidebarProvider>
         </LanguageProvider>
       </body>
     </html>

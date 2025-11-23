@@ -14,6 +14,18 @@ export const translations = {
       confirm: "确认",
       back: "返回",
     },
+    // 登录
+    login: {
+      title: "登录 GoodBot",
+      description: "输入管理员密码以访问控制面板",
+      password: "密码",
+      passwordPlaceholder: "输入你的管理员密码",
+      login: "登录",
+      loggingIn: "登录中...",
+      loginFailed: "密码错误",
+      loginError: "登录失败，请重试",
+      logout: "退出登录",
+    },
     // 导航
     nav: {
       dashboard: "仪表盘",
@@ -115,6 +127,18 @@ export const translations = {
       close: "Close",
       confirm: "Confirm",
       back: "Back",
+    },
+    // Login
+    login: {
+      title: "Login to GoodBot",
+      description: "Enter admin password to access control panel",
+      password: "Password",
+      passwordPlaceholder: "Enter your admin password",
+      login: "Login",
+      loggingIn: "Logging in...",
+      loginFailed: "Invalid password",
+      loginError: "Login failed, please try again",
+      logout: "Logout",
     },
     // Navigation
     nav: {

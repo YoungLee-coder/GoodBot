@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, MessageSquare, Users, Settings } from "lucide-react"
+import { Home, MessageSquare, Users, Settings, LogOut } from "lucide-react"
 import {
     Sidebar,
     SidebarContent,
@@ -14,9 +14,11 @@ import {
 } from "@/components/ui/sidebar"
 import { LanguageSwitcher } from "./language-switcher"
 import { useLanguage } from "./language-provider"
+import { useRouter } from "next/navigation"
 
 export function AppSidebar() {
     const { t } = useLanguage();
+    const router = useRouter();
 
     const items = [
         {
@@ -40,6 +42,16 @@ export function AppSidebar() {
             icon: Settings,
         },
     ];
+
+    async function handleLogout() {
+        try {
+            await fetch("/api/auth/logout", { method: "POST" });
+            router.push("/login");
+            router.refresh();
+        } catch (error) {
+            console.error("Logout failed:", error);
+        }
+    }
 
     return (
         <Sidebar>
@@ -65,8 +77,12 @@ export function AppSidebar() {
             <SidebarFooter>
                 <SidebarMenu>
                     <SidebarMenuItem>
-                        <div className="flex items-center justify-center p-2">
+                        <div className="flex items-center justify-between p-2 gap-2">
                             <LanguageSwitcher />
+                            <SidebarMenuButton onClick={handleLogout}>
+                                <LogOut className="h-4 w-4" />
+                                <span>{t.login.logout}</span>
+                            </SidebarMenuButton>
                         </div>
                     </SidebarMenuItem>
                 </SidebarMenu>

@@ -697,8 +697,13 @@ export async function getBot() {
             if (handled) return; // 是抽奖关键词，已处理
         }
 
+        // 4. 群组消息不转发给管理员，只处理私聊消息
+        if (ctx.chat.type !== "private") {
+            return; // 群组消息已处理完毕（抽奖关键词检查）
+        }
+
         if (adminChatId && senderId === adminChatId) {
-            // IS ADMIN
+            // IS ADMIN (私聊)
             const replyTo = ctx.message.reply_to_message;
             if (replyTo) {
                 // Find the original message mapping

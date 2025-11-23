@@ -160,6 +160,8 @@ export async function handleLotteryParticipation(
     const userId = ctx.from.id;
     const groupId = ctx.chat.id;
 
+    console.log(`Checking lottery participation: keyword="${keyword}", groupId=${groupId}`);
+
     // 查找匹配关键词的活跃抽奖
     const matchingLotteries = await db
         .select()
@@ -171,6 +173,8 @@ export async function handleLotteryParticipation(
                 eq(lotteries.status, "active")
             )
         );
+
+    console.log(`Found ${matchingLotteries.length} matching lotteries`);
 
     if (matchingLotteries.length === 0) {
         return false; // 不是抽奖关键词

@@ -6,6 +6,9 @@ import { db } from "@/lib/db";
 import { users, groups, messages } from "@/lib/db/schema";
 import { count } from "drizzle-orm";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function Dashboard() {
   const initialized = await isAppInitialized();
   if (!initialized) {

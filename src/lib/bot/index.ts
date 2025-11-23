@@ -6,22 +6,87 @@ import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
 let bot: Bot | null = null;
+let isInitializing = false;
+let lastCommandsUpdate = 0;
+
+// 存储等待密码输入的用户会话
+const pendingLogins = new Map<number, { timestamp: number }>();
+
+// 清理过期的登录会话（60秒）
+function cleanupExpiredLogins() {
+    const now = Date.now();
+    for (const [userId, session] of pendingLogins.entries()) {
+        if (now - session.timestamp > 60000) {
+            pendingLogins.delete(userId);
+        }
+    }
+}
+
+// 更新命令菜单（带缓存，避免频繁更新）
+async function updateBotCommands(hasAdmin: boolean) {
+    const now = Date.now();
+    // 5分钟内不重复更新
+    if (now - lastCommandsUpdate < 300000) {
+        return;
+    }
+
+    if (!bot) return;
+
+    try {
+        if (hasAdmin) {
+            await bot.api.setMyCommands([
+                { command: "start", description: "开始使用 Bot" },
+                { command: "help", description: "查看帮助信息" },
+                { command: "lottery", description: "创建抽奖活动（仅管理员）" },
+            ]);
+        } else {
+            await bot.api.setMyCommands([
+                { command: "start", description: "开始使用 Bot" },
+                { command: "help", description: "查看帮助信息" },
+                { command: "login", description: "管理员登录" },
+            ]);
+        }
+        lastCommandsUpdate = now;
+    } catch (error) {
+        console.error("Failed to update bot commands:", error);
+    }
+}
+
+// 强制更新命令菜单（用于登录/解绑时）
+export async function forceUpdateBotCommands(hasAdmin: boolean) {
+    lastCommandsUpdate = 0;
+    await updateBotCommands(hasAdmin);
+}
 
 export async function getBot() {
     if (bot) return bot;
 
-    const token = await getSetting("bot_token");
-    if (!token) return null;
+    // 防止并发初始化
+    if (isInitializing) {
+        // 等待初始化完成
+        while (isInitializing) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        return bot;
+    }
 
-    bot = new Bot(token);
+    isInitializing = true;
 
-    // 设置 Bot 命令菜单
-    await bot.api.setMyCommands([
-        { command: "start", description: "开始使用 Bot" },
-        { command: "help", description: "查看帮助信息" },
-        { command: "login", description: "管理员登录" },
-        { command: "lottery", description: "创建抽奖活动（仅管理员）" },
-    ]);
+    try {
+        const token = await getSetting("bot_token");
+        if (!token) {
+            isInitializing = false;
+            return null;
+        }
+
+        bot = new Bot(token);
+
+        // 异步更新命令菜单，不阻塞初始化
+        const adminChatIdStr = await getSetting("admin_chat_id");
+        const hasAdmin = !!adminChatIdStr;
+        updateBotCommands(hasAdmin).catch(err => 
+            console.error("Failed to update commands:", err)
+        );
 
     // Command: /start
     bot.command("start", async (ctx) => {
@@ -76,20 +141,50 @@ export async function getBot() {
         }
     });
 
-    // Command: /login <password>
+    // Command: /login [password]
     bot.command("login", async (ctx) => {
-        const password = ctx.match;
-        if (!password) return ctx.reply("Usage: /login <password>");
+        // 检查是否已经绑定了 admin
+        const existingAdminChatIdStr = await getSetting("admin_chat_id");
+        if (existingAdminChatIdStr) {
+            return ctx.reply(
+                "⚠️ 管理员已绑定。如需更换管理员，请先在 WebUI 中解绑。\n" +
+                "⚠️ Admin already linked. To change admin, please unbind in WebUI first."
+            );
+        }
 
+        const password = ctx.match.trim();
+        
         const adminPasswordHash = await getSetting("admin_password");
-        if (!adminPasswordHash) return ctx.reply("Admin password not set in WebUI.");
+        if (!adminPasswordHash) {
+            return ctx.reply("❌ 管理员密码未在 WebUI 中设置。\n❌ Admin password not set in WebUI.");
+        }
 
-        const isValid = await bcrypt.compare(password, adminPasswordHash);
-        if (isValid) {
-            await setSetting("admin_chat_id", ctx.chat.id.toString());
-            await ctx.reply("✅ Login successful! You are now the Admin. Messages will be forwarded here.");
+        // 如果提供了密码，直接验证
+        if (password) {
+            const isValid = await bcrypt.compare(password, adminPasswordHash);
+            if (isValid) {
+                await setSetting("admin_chat_id", ctx.chat.id.toString());
+                pendingLogins.delete(ctx.from!.id);
+                
+                // 强制更新命令菜单，移除 login 命令
+                await forceUpdateBotCommands(true);
+                
+                await ctx.reply(
+                    "✅ 登录成功！你现在是管理员。用户消息将转发到这里。\n" +
+                    "✅ Login successful! You are now the Admin. Messages will be forwarded here."
+                );
+            } else {
+                await ctx.reply("❌ 密码错误。\n❌ Invalid password.");
+            }
         } else {
-            await ctx.reply("❌ Invalid password.");
+            // 没有提供密码，进入等待密码模式
+            pendingLogins.set(ctx.from!.id, { timestamp: Date.now() });
+            await ctx.reply(
+                "🔐 请在 60 秒内发送你的管理员密码。\n" +
+                "🔐 Please send your admin password within 60 seconds.\n\n" +
+                "💡 提示：为了安全，建议发送后立即删除密码消息。\n" +
+                "💡 Tip: For security, delete your password message immediately after sending."
+            );
         }
     });
 
@@ -372,6 +467,53 @@ export async function getBot() {
         const senderId = ctx.from.id;
         const chatId = ctx.chat.id;
 
+        // 清理过期的登录会话
+        cleanupExpiredLogins();
+
+        // 检查是否在等待密码输入
+        const pendingLogin = pendingLogins.get(senderId);
+        if (pendingLogin && ctx.message.text && ctx.chat.type === "private") {
+            const now = Date.now();
+            if (now - pendingLogin.timestamp <= 60000) {
+                // 在60秒内，验证密码
+                const password = ctx.message.text.trim();
+                const adminPasswordHash = await getSetting("admin_password");
+                
+                if (adminPasswordHash) {
+                    const isValid = await bcrypt.compare(password, adminPasswordHash);
+                    if (isValid) {
+                        await setSetting("admin_chat_id", chatId.toString());
+                        pendingLogins.delete(senderId);
+                        
+                        // 强制更新命令菜单，移除 login 命令
+                        await forceUpdateBotCommands(true);
+                        
+                        // 尝试删除用户的密码消息（为了安全）
+                        try {
+                            await ctx.deleteMessage();
+                        } catch (e) {
+                            // 如果无法删除，忽略错误
+                        }
+                        
+                        await ctx.reply(
+                            "✅ 登录成功！你现在是管理员。用户消息将转发到这里。\n" +
+                            "✅ Login successful! You are now the Admin. Messages will be forwarded here."
+                        );
+                        return;
+                    } else {
+                        pendingLogins.delete(senderId);
+                        await ctx.reply("❌ 密码错误。请重新使用 /login 命令。\n❌ Invalid password. Please use /login command again.");
+                        return;
+                    }
+                }
+            } else {
+                // 超时
+                pendingLogins.delete(senderId);
+                await ctx.reply("⏱️ 登录超时。请重新使用 /login 命令。\n⏱️ Login timeout. Please use /login command again.");
+                return;
+            }
+        }
+
         // 1. Save User
         await db.insert(users).values({
             id: senderId,
@@ -473,5 +615,8 @@ export async function getBot() {
         }
     });
 
-    return bot;
+        return bot;
+    } finally {
+        isInitializing = false;
+    }
 }

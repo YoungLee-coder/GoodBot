@@ -12,46 +12,50 @@ export default function SettingsPage() {
 
     return (
         <div className="p-6 space-y-6 max-w-2xl">
-            <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
+            <h1 className="text-3xl font-bold tracking-tight">设置</h1>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Bot Configuration</CardTitle>
-                    <CardDescription>Update your Telegram Bot Token</CardDescription>
+                    <CardTitle>Bot 配置</CardTitle>
+                    <CardDescription>更新你的 Telegram Bot Token</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form action={async (formData) => {
                         setLoading(true);
                         await updateBotToken(formData);
                         setLoading(false);
-                        alert("Token updated!");
+                        alert("Token 已更新！");
                     }} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="botToken">New Bot Token</Label>
-                            <Input id="botToken" name="botToken" type="password" placeholder="Current token hidden" required />
+                            <Label htmlFor="botToken">新 Bot Token</Label>
+                            <Input id="botToken" name="botToken" type="password" placeholder="当前 Token 已隐藏" required />
                         </div>
-                        <Button type="submit" disabled={loading}>Update Token</Button>
+                        <Button type="submit" disabled={loading}>
+                            {loading ? "更新中..." : "更新 Token"}
+                        </Button>
                     </form>
                 </CardContent>
             </Card>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Admin Security</CardTitle>
-                    <CardDescription>Change your Admin Password (for /login)</CardDescription>
+                    <CardTitle>管理员安全</CardTitle>
+                    <CardDescription>修改管理员密码（用于 /login 命令）</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form action={async (formData) => {
                         setLoading(true);
                         await updateAdminPassword(formData);
                         setLoading(false);
-                        alert("Password updated!");
+                        alert("密码已更新！");
                     }} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="password">New Password</Label>
+                            <Label htmlFor="password">新密码</Label>
                             <Input id="password" name="password" type="password" required />
                         </div>
-                        <Button type="submit" variant="secondary" disabled={loading}>Update Password</Button>
+                        <Button type="submit" variant="secondary" disabled={loading}>
+                            {loading ? "更新中..." : "更新密码"}
+                        </Button>
                     </form>
                 </CardContent>
             </Card>
@@ -59,12 +63,12 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Telegram Webhook</CardTitle>
-                    <CardDescription>Configure webhook for receiving messages (required for Vercel deployment)</CardDescription>
+                    <CardDescription>配置 Webhook 以接收消息（部署到生产环境时需要）</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
                         <p className="text-sm text-muted-foreground">
-                            After deploying to Vercel, click this button to tell Telegram where to send messages.
+                            部署到生产环境后，点击此按钮告诉 Telegram 将消息发送到哪里。
                         </p>
                         <Button
                             onClick={async () => {
@@ -73,12 +77,12 @@ export default function SettingsPage() {
                                     const res = await fetch('/api/setup-webhook');
                                     const data = await res.json();
                                     if (data.success) {
-                                        alert(`✅ Webhook set successfully!\n\nURL: ${data.webhookUrl}\n\nYour bot is now ready to receive messages.`);
+                                        alert(`✅ Webhook 设置成功！\n\nURL: ${data.webhookUrl}\n\n你的 Bot 现在可以接收消息了。`);
                                     } else {
-                                        alert(`❌ Failed: ${data.error}`);
+                                        alert(`❌ 失败: ${data.error}`);
                                     }
                                 } catch (e: any) {
-                                    alert(`❌ Error: ${e.message}`);
+                                    alert(`❌ 错误: ${e.message}`);
                                 } finally {
                                     setLoading(false);
                                 }
@@ -86,8 +90,11 @@ export default function SettingsPage() {
                             disabled={loading}
                             variant="outline"
                         >
-                            Setup Webhook
+                            {loading ? "设置中..." : "设置 Webhook"}
                         </Button>
+                        <p className="text-xs text-muted-foreground">
+                            💡 提示：本地开发时无需设置 Webhook，可以使用 long polling 模式。
+                        </p>
                     </div>
                 </CardContent>
             </Card>

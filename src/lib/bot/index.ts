@@ -23,13 +23,14 @@ let lastCommandsUpdate = 0;
 const pendingLogins = new Map<number, { timestamp: number }>();
 
 // 存储抽奖创建会话
-type LotteryCreationStep = "waiting_title" | "waiting_prizes" | "waiting_keyword" | "waiting_duration";
+type LotteryCreationStep = "waiting_title" | "waiting_prize_name" | "waiting_prize_count" | "waiting_keyword" | "waiting_duration";
 type Prize = { name: string; count: number };
 type LotteryCreationSession = {
     step: LotteryCreationStep;
     groupId: number;
     title?: string;
     prizes?: Prize[];
+    currentPrizeName?: string; // 当前正在添加的奖品名称
     keyword?: string;
     timestamp: number;
 };
@@ -285,6 +286,42 @@ export async function getBot() {
             await ctx.reply(
                 "❌ 已取消创建抽奖。\n" +
                 "❌ Lottery creation cancelled."
+            );
+        }
+    });
+
+    // Command: /next - 完成奖品设置，进入下一步
+    bot.command("next", async (ctx) => {
+        const session = lotteryCreationSessions.get(ctx.from!.id);
+        if (!session) return;
+
+        if (session.step === "waiting_prize_name" || session.step === "waiting_prize_count") {
+            // 检查是否至少添加了一个奖品
+            if (!session.prizes || session.prizes.length === 0) {
+                await ctx.reply(
+                    "❌ 请至少添加一个奖品\n\n" +
+                    "💡 发送奖品名称开始添加"
+                );
+                return;
+            }
+
+            // 进入下一步：输入关键词
+            session.step = "waiting_keyword";
+            session.currentPrizeName = undefined;
+            session.timestamp = Date.now();
+
+            // 显示奖品摘要
+            const totalCount = session.prizes.reduce((sum: number, p) => sum + p.count, 0);
+            const prizesSummary = session.prizes.map(p => `  • ${p.name} × ${p.count}`).join('\n');
+            
+            await ctx.reply(
+                "✅ 奖品设置完成\n\n" +
+                "🎁 奖品列表：\n" +
+                prizesSummary + "\n" +
+                `📊 总计：${totalCount} 个名额\n\n` +
+                "🔑 请输入参与关键词\n" +
+                "⏱️ 你有 120 秒的时间输入\n\n" +
+                "💡 用户需要在群组中发送此关键词来参与抽奖"
             );
         }
     });

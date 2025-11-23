@@ -29,71 +29,62 @@ export async function handleLotteryCreationMessage(
 
     if (session.step === "waiting_title") {
         session.title = text;
-        session.step = "waiting_prizes";
+        session.step = "waiting_prize_name";
+        session.prizes = [];
         await ctx.reply(
             "✅ 活动名称已设置\n\n" +
-            "🎁 请设置奖品\n" +
-            "⏱️ 你有 120 秒的时间输入\n\n" +
-            "📝 格式：奖品名称:数量\n" +
-            "多个奖品用换行分隔\n\n" +
-            "💡 示例：\n" +
-            "一等奖:1\n" +
-            "二等奖:2\n" +
-            "三等奖:5\n\n" +
-            "或者直接输入数字设置总中奖人数（不区分奖品）"
+            "🎁 开始设置奖品\n" +
+            "⏱️ 你有 120 秒的时间\n\n" +
+            "📝 请发送第一个奖品的名称\n\n" +
+            "💡 示例：一等奖、iPhone 15、现金红包等"
         );
         return true;
     }
 
-    if (session.step === "waiting_prizes") {
-        // 解析奖品设置
-        const prizes: Array<{ name: string; count: number }> = [];
-        let totalCount = 0;
+    if (session.step === "waiting_prize_name") {
+        // 保存奖品名称
+        session.currentPrizeName = text;
+        session.step = "waiting_prize_count";
+        await ctx.reply(
+            `✅ 奖品名称：${text}\n\n` +
+            "🔢 请发送该奖品的数量\n\n" +
+            "💡 示例：1、3、10 等"
+        );
+        return true;
+    }
 
-        // 检查是否只是一个数字（不区分奖品）
-        const simpleNumber = parseInt(text);
-        if (!isNaN(simpleNumber) && simpleNumber > 0) {
-            prizes.push({ name: "中奖", count: simpleNumber });
-            totalCount = simpleNumber;
-        } else {
-            // 解析多行奖品设置
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-            for (const line of lines) {
-                const parts = line.split(/[:：]/).map(p => p.trim());
-                if (parts.length === 2) {
-                    const name = parts[0];
-                    const count = parseInt(parts[1]);
-                    if (name && !isNaN(count) && count > 0) {
-                        prizes.push({ name, count });
-                        totalCount += count;
-                    }
-                }
-            }
-        }
-
-        if (prizes.length === 0 || totalCount === 0) {
+    if (session.step === "waiting_prize_count") {
+        const count = parseInt(text);
+        
+        if (isNaN(count) || count < 1) {
             await ctx.reply(
-                "❌ 奖品格式错误\n\n" +
-                "请按照以下格式输入：\n" +
-                "奖品名称:数量\n\n" +
-                "或者直接输入总中奖人数"
+                "❌ 数量必须是大于 0 的整数\n\n" +
+                "请重新输入数量"
             );
             return true;
         }
 
-        session.prizes = prizes;
-        session.step = "waiting_keyword";
+        // 添加奖品到列表
+        if (!session.prizes) session.prizes = [];
+        session.prizes.push({
+            name: session.currentPrizeName!,
+            count: count
+        });
 
-        // 显示奖品摘要
-        let prizesSummary = prizes.map(p => `  • ${p.name} × ${p.count}`).join('\n');
+        // 显示当前奖品列表
+        const totalCount = session.prizes.reduce((sum: number, p: { name: string; count: number }) => sum + p.count, 0);
+        const prizesSummary = session.prizes.map((p: { name: string; count: number }, i: number) => `  ${i + 1}. ${p.name} × ${p.count}`).join('\n');
+
+        session.step = "waiting_prize_name";
+        session.currentPrizeName = undefined;
+
         await ctx.reply(
-            "✅ 奖品已设置\n\n" +
-            "🎁 奖品列表：\n" +
+            `✅ 已添加：${session.currentPrizeName} × ${count}\n\n` +
+            "📋 当前奖品列表：\n" +
             prizesSummary + "\n" +
             `📊 总计：${totalCount} 个名额\n\n` +
-            "🔑 请输入参与关键词\n" +
-            "⏱️ 你有 120 秒的时间输入\n\n" +
-            "💡 用户需要在群组中发送此关键词来参与抽奖"
+            "➕ 继续添加奖品：发送奖品名称\n" +
+            "✔️ 完成设置：发送 /next"
         );
         return true;
     }
@@ -506,8 +497,14 @@ export async function performDrawing(lotteryId: number, bot: Bot) {
 
         // 生成中奖名单文本
         let winnerText = "";
+        const lotteryPrizes = (lottery.prizes as any) || [];
+        
         for (const [prizeName, prizeWinners] of winnersByPrize) {
-            winnerText += `\n*${prizeName}：*\n`;
+            // 找到对应奖品的数量
+            const prizeInfo = lotteryPrizes.find((p: any) => p.name === prizeName);
+            const prizeCount = prizeInfo ? prizeInfo.count : prizeWinners.length;
+            
+            winnerText += `\n*${prizeName}（共 ${prizeCount} 份）：*\n`;
             for (const w of prizeWinners) {
                 winnerText += `🏆 ${w.name} ${w.username}\n`;
             }

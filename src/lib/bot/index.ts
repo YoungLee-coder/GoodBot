@@ -4,6 +4,16 @@ import { db } from "@/lib/db";
 import { users, messages, messageMaps, groups, lotteries, lotteryParticipants } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import {
+    handleLotteryCreationMessage,
+    handleLotteryDurationCallback,
+    handleLotteryParticipation,
+    showLotteryManagement,
+    delayLottery,
+    endLotteryNow,
+    performDrawing,
+} from "./lottery-handler";
+import { restoreScheduledDrawings } from "./lottery-scheduler";
 
 let bot: Bot | null = null;
 let isInitializing = false;
@@ -12,12 +22,33 @@ let lastCommandsUpdate = 0;
 // 存储等待密码输入的用户会话
 const pendingLogins = new Map<number, { timestamp: number }>();
 
+// 存储抽奖创建会话
+type LotteryCreationStep = "waiting_title" | "waiting_keyword" | "waiting_duration";
+type LotteryCreationSession = {
+    step: LotteryCreationStep;
+    groupId: number;
+    title?: string;
+    keyword?: string;
+    timestamp: number;
+};
+const lotteryCreationSessions = new Map<number, LotteryCreationSession>();
+
 // 清理过期的登录会话（60秒）
 function cleanupExpiredLogins() {
     const now = Date.now();
     for (const [userId, session] of pendingLogins.entries()) {
         if (now - session.timestamp > 60000) {
             pendingLogins.delete(userId);
+        }
+    }
+}
+
+// 清理过期的抽奖创建会话（120秒）
+function cleanupExpiredLotteryCreations() {
+    const now = Date.now();
+    for (const [userId, session] of lotteryCreationSessions.entries()) {
+        if (now - session.timestamp > 120000) {
+            lotteryCreationSessions.delete(userId);
         }
     }
 }
@@ -37,7 +68,8 @@ async function updateBotCommands(hasAdmin: boolean) {
             await bot.api.setMyCommands([
                 { command: "start", description: "开始使用 Bot" },
                 { command: "help", description: "查看帮助信息" },
-                { command: "lottery", description: "创建抽奖活动（仅管理员）" },
+                { command: "create_lottery", description: "创建抽奖（群组中使用）" },
+                { command: "viewlottery", description: "查看和管理抽奖（私聊中使用）" },
             ]);
         } else {
             await bot.api.setMyCommands([
@@ -86,6 +118,11 @@ export async function getBot() {
         const hasAdmin = !!adminChatIdStr;
         updateBotCommands(hasAdmin).catch(err => 
             console.error("Failed to update commands:", err)
+        );
+
+        // 恢复定时抽奖任务
+        restoreScheduledDrawings(bot).catch(err =>
+            console.error("Failed to restore scheduled drawings:", err)
         );
 
     // Command: /start
@@ -188,89 +225,197 @@ export async function getBot() {
         }
     });
 
-    // Command: /lottery - 创建抽奖（仅 Bot Admin）
-    bot.command("lottery", async (ctx) => {
+    // Command: /create-lottery - 创建抽奖（仅 Bot Admin，仅群组）
+    bot.command("create_lottery", async (ctx) => {
         // 检查是否在群组中
         if (ctx.chat.type === "private") {
-            return ctx.reply("❌ 抽奖功能仅在群组中可用。");
+            return ctx.reply(
+                "❌ 抽奖功能仅在群组中可用。\n" +
+                "❌ Lottery feature is only available in groups."
+            );
         }
 
-        // 检查是否是 Bot Admin（通过 /login 登录的管理员）
+        // 检查是否是 Bot Admin
         const adminChatIdStr = await getSetting("admin_chat_id");
         const adminChatId = adminChatIdStr ? parseInt(adminChatIdStr) : null;
         
         if (!adminChatId || ctx.from!.id !== adminChatId) {
-            return ctx.reply("❌ 只有 Bot 管理员可以创建抽奖。请先使用 /login 命令登录。");
-        }
-
-        // 解析参数: /lottery <标题> | <描述> | <中奖人数>
-        const args = ctx.match.trim();
-        if (!args) {
             return ctx.reply(
-                "📝 *创建抽奖*\n\n" +
-                "*用法:*\n" +
-                "`/lottery <标题> | <描述> | <中奖人数>`\n\n" +
-                "*示例:*\n" +
-                "`/lottery 新年抽奖 | 参与即有机会获得奖品 | 3`\n\n" +
-                "中奖人数默认为 1",
-                { parse_mode: "Markdown" }
+                "❌ 只有 Bot 管理员可以创建抽奖。\n" +
+                "❌ Only Bot admin can create lottery."
             );
         }
 
-        const parts = args.split("|").map(p => p.trim());
-        const title = parts[0];
-        const description = parts[1] || "点击下方按钮参与抽奖";
-        const winnerCount = parts[2] ? parseInt(parts[2]) : 1;
-
-        if (!title) {
-            return ctx.reply("❌ 请提供抽奖标题。");
-        }
-
-        if (isNaN(winnerCount) || winnerCount < 1) {
-            return ctx.reply("❌ 中奖人数必须是大于 0 的数字。");
-        }
-
-        // 创建抽奖记录
-        const [lottery] = await db.insert(lotteries).values({
+        // 开始创建流程，私聊管理员
+        lotteryCreationSessions.set(ctx.from!.id, {
+            step: "waiting_title",
             groupId: ctx.chat.id,
-            title,
-            description,
-            winnerCount,
-            creatorId: ctx.from!.id,
-            status: "active",
-        }).returning();
+            timestamp: Date.now(),
+        });
 
-        // 发送抽奖消息
-        const keyboard = new InlineKeyboard()
-            .text("🎉 参与抽奖", `join_lottery_${lottery.id}`)
-            .row()
-            .text("📊 查看参与者", `view_lottery_${lottery.id}`)
-            .text("🏁 结束抽奖", `end_lottery_${lottery.id}`);
+        try {
+            await ctx.api.sendMessage(
+                adminChatId,
+                "🎊 *创建抽奖活动*\n\n" +
+                "📝 请输入活动名称\n" +
+                "⏱️ 你有 120 秒的时间输入\n\n" +
+                "💡 提示：输入 /cancel 可以取消创建",
+                { parse_mode: "Markdown" }
+            );
 
-        const message = await ctx.reply(
-            `🎊 *${title}*\n\n` +
-            `${description}\n\n` +
-            `👥 中奖人数: ${winnerCount}\n` +
-            `👤 发起人: ${ctx.from!.first_name}\n` +
-            `📅 创建时间: ${new Date().toLocaleString("zh-CN")}\n\n` +
-            `当前参与人数: 0`,
+            await ctx.reply(
+                "✅ 已在私聊中开始创建抽奖流程，请查看与 Bot 的私聊。\n" +
+                "✅ Lottery creation started in private chat."
+            );
+        } catch (error) {
+            lotteryCreationSessions.delete(ctx.from!.id);
+            await ctx.reply(
+                "❌ 无法发送私聊消息。请先在 Bot 私聊中发送 /start。\n" +
+                "❌ Cannot send private message. Please send /start to bot first."
+            );
+        }
+    });
+
+    // Command: /cancel - 取消创建抽奖
+    bot.command("cancel", async (ctx) => {
+        if (lotteryCreationSessions.has(ctx.from!.id)) {
+            lotteryCreationSessions.delete(ctx.from!.id);
+            await ctx.reply(
+                "❌ 已取消创建抽奖。\n" +
+                "❌ Lottery creation cancelled."
+            );
+        }
+    });
+
+    // Command: /viewlottery - 查看当前抽奖活动
+    bot.command("viewlottery", async (ctx) => {
+        // 只在私聊中可用
+        if (ctx.chat.type !== "private") {
+            return ctx.reply(
+                "💡 请在与 Bot 的私聊中使用此命令。\n" +
+                "💡 Please use this command in private chat."
+            );
+        }
+
+        // 检查是否是管理员
+        const adminChatIdStr = await getSetting("admin_chat_id");
+        const adminChatId = adminChatIdStr ? parseInt(adminChatIdStr) : null;
+        
+        if (!adminChatId || ctx.from!.id !== adminChatId) {
+            return ctx.reply(
+                "❌ 只有 Bot 管理员可以查看抽奖活动。\n" +
+                "❌ Only Bot admin can view lotteries."
+            );
+        }
+
+        // 获取所有进行中的抽奖
+        const activeLotteries = await db
+            .select()
+            .from(lotteries)
+            .where(eq(lotteries.status, "active"));
+
+        if (activeLotteries.length === 0) {
+            return ctx.reply(
+                "📭 当前没有进行中的抽奖活动。\n" +
+                "📭 No active lotteries at the moment."
+            );
+        }
+
+        // 为每个抽奖创建按钮
+        const keyboard = new InlineKeyboard();
+        for (const lottery of activeLotteries) {
+            const group = await db.select().from(groups).where(eq(groups.id, lottery.groupId));
+            const groupName = group[0]?.title || "未知群组";
+            keyboard.text(
+                `${lottery.title} (${groupName})`,
+                `manage_lottery_${lottery.id}`
+            ).row();
+        }
+
+        await ctx.reply(
+            "🎊 *当前进行中的抽奖活动*\n\n" +
+            "点击下方按钮查看详情和管理",
             {
                 parse_mode: "Markdown",
                 reply_markup: keyboard,
             }
         );
-
-        // 更新消息 ID
-        await db.update(lotteries)
-            .set({ messageId: message.message_id })
-            .where(eq(lotteries.id, lottery.id));
     });
 
-    // 处理抽奖按钮回调
+    // 处理回调查询
     bot.on("callback_query:data", async (ctx) => {
         const data = ctx.callbackQuery.data;
 
-        // 参与抽奖
+        // 处理抽奖时长选择
+        if (data.startsWith("lottery_duration_")) {
+            const duration = data.replace("lottery_duration_", "");
+            await handleLotteryDurationCallback(ctx, duration, lotteryCreationSessions, bot!);
+            return;
+        }
+
+        // 处理抽奖管理
+        if (data.startsWith("manage_lottery_")) {
+            const lotteryId = parseInt(data.replace("manage_lottery_", ""));
+            await showLotteryManagement(ctx, lotteryId);
+            return;
+        }
+
+        // 延迟抽奖
+        if (data.startsWith("delay_lottery_")) {
+            const parts = data.replace("delay_lottery_", "").split("_");
+            const lotteryId = parseInt(parts[0]);
+            const duration = parts[1];
+            await delayLottery(ctx, lotteryId, duration, bot!);
+            return;
+        }
+
+        // 立即结束抽奖
+        if (data.startsWith("end_lottery_now_")) {
+            const lotteryId = parseInt(data.replace("end_lottery_now_", ""));
+            await endLotteryNow(ctx, lotteryId, bot!);
+            return;
+        }
+
+        // 返回抽奖列表
+        if (data === "back_to_lottery_list") {
+            // 重新获取抽奖列表
+            const activeLotteries = await db
+                .select()
+                .from(lotteries)
+                .where(eq(lotteries.status, "active"));
+
+            if (activeLotteries.length === 0) {
+                await ctx.editMessageText(
+                    "📭 当前没有进行中的抽奖活动。\n" +
+                    "📭 No active lotteries at the moment."
+                );
+                await ctx.answerCallbackQuery();
+                return;
+            }
+
+            const keyboard = new InlineKeyboard();
+            for (const lottery of activeLotteries) {
+                const group = await db.select().from(groups).where(eq(groups.id, lottery.groupId));
+                const groupName = group[0]?.title || "未知群组";
+                keyboard.text(
+                    `${lottery.title} (${groupName})`,
+                    `manage_lottery_${lottery.id}`
+                ).row();
+            }
+
+            await ctx.editMessageText(
+                "🎊 *当前进行中的抽奖活动*\n\n" +
+                "点击下方按钮查看详情和管理",
+                {
+                    parse_mode: "Markdown",
+                    reply_markup: keyboard,
+                }
+            );
+            await ctx.answerCallbackQuery();
+            return;
+        }
+
+        // 旧的抽奖按钮（保留兼容性）
         if (data.startsWith("join_lottery_")) {
             const lotteryId = parseInt(data.replace("join_lottery_", ""));
             
@@ -467,8 +612,16 @@ export async function getBot() {
         const senderId = ctx.from.id;
         const chatId = ctx.chat.id;
 
-        // 清理过期的登录会话
+        // 清理过期的会话
         cleanupExpiredLogins();
+        cleanupExpiredLotteryCreations();
+
+        // 检查是否在抽奖创建流程中（私聊）
+        const lotterySession = lotteryCreationSessions.get(senderId);
+        if (lotterySession && ctx.message.text && ctx.chat.type === "private") {
+            const handled = await handleLotteryCreationMessage(ctx, lotterySession, lotteryCreationSessions);
+            if (handled) return;
+        }
 
         // 检查是否在等待密码输入
         const pendingLogin = pendingLogins.get(senderId);
@@ -537,6 +690,12 @@ export async function getBot() {
             text: ctx.message.text || "[Media/Other]",
             raw: ctx.message as any,
         });
+
+        // 3. 检查是否是抽奖参与关键词（群组消息）
+        if (ctx.message.text && ctx.chat.type !== "private") {
+            const handled = await handleLotteryParticipation(ctx, ctx.message.text.trim());
+            if (handled) return; // 是抽奖关键词，已处理
+        }
 
         if (adminChatId && senderId === adminChatId) {
             // IS ADMIN

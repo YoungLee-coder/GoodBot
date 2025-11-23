@@ -44,12 +44,13 @@ export const lotteries = pgTable("lotteries", {
     id: serial("id").primaryKey(),
     groupId: bigint("group_id", { mode: "number" }).notNull(), // Telegram Chat ID
     title: text("title").notNull(), // 抽奖标题
+    keyword: text("keyword").notNull(), // 参与关键词
     description: text("description"), // 抽奖描述
     winnerCount: integer("winner_count").notNull().default(1), // 中奖人数
     creatorId: bigint("creator_id", { mode: "number" }).notNull(), // 创建者 User ID
     messageId: bigint("message_id", { mode: "number" }), // 抽奖消息 ID
-    status: text("status").notNull().default("active"), // active, ended
-    endTime: timestamp("end_time"), // 结束时间
+    status: text("status").notNull().default("active"), // active, ended, scheduled
+    scheduledEndTime: timestamp("scheduled_end_time"), // 计划结束时间
     createdAt: timestamp("created_at").defaultNow(),
     endedAt: timestamp("ended_at"), // 实际结束时间
 });

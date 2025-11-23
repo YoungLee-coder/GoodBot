@@ -23,11 +23,13 @@ let lastCommandsUpdate = 0;
 const pendingLogins = new Map<number, { timestamp: number }>();
 
 // 存储抽奖创建会话
-type LotteryCreationStep = "waiting_title" | "waiting_keyword" | "waiting_duration";
+type LotteryCreationStep = "waiting_title" | "waiting_prizes" | "waiting_keyword" | "waiting_duration";
+type Prize = { name: string; count: number };
 type LotteryCreationSession = {
     step: LotteryCreationStep;
     groupId: number;
     title?: string;
+    prizes?: Prize[];
     keyword?: string;
     timestamp: number;
 };

@@ -29,9 +29,68 @@ export async function handleLotteryCreationMessage(
 
     if (session.step === "waiting_title") {
         session.title = text;
-        session.step = "waiting_keyword";
+        session.step = "waiting_prizes";
         await ctx.reply(
             "✅ 活动名称已设置\n\n" +
+            "🎁 请设置奖品\n" +
+            "⏱️ 你有 120 秒的时间输入\n\n" +
+            "📝 格式：奖品名称:数量\n" +
+            "多个奖品用换行分隔\n\n" +
+            "💡 示例：\n" +
+            "一等奖:1\n" +
+            "二等奖:2\n" +
+            "三等奖:5\n\n" +
+            "或者直接输入数字设置总中奖人数（不区分奖品）"
+        );
+        return true;
+    }
+
+    if (session.step === "waiting_prizes") {
+        // 解析奖品设置
+        const prizes: Array<{ name: string; count: number }> = [];
+        let totalCount = 0;
+
+        // 检查是否只是一个数字（不区分奖品）
+        const simpleNumber = parseInt(text);
+        if (!isNaN(simpleNumber) && simpleNumber > 0) {
+            prizes.push({ name: "中奖", count: simpleNumber });
+            totalCount = simpleNumber;
+        } else {
+            // 解析多行奖品设置
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+            for (const line of lines) {
+                const parts = line.split(/[:：]/).map(p => p.trim());
+                if (parts.length === 2) {
+                    const name = parts[0];
+                    const count = parseInt(parts[1]);
+                    if (name && !isNaN(count) && count > 0) {
+                        prizes.push({ name, count });
+                        totalCount += count;
+                    }
+                }
+            }
+        }
+
+        if (prizes.length === 0 || totalCount === 0) {
+            await ctx.reply(
+                "❌ 奖品格式错误\n\n" +
+                "请按照以下格式输入：\n" +
+                "奖品名称:数量\n\n" +
+                "或者直接输入总中奖人数"
+            );
+            return true;
+        }
+
+        session.prizes = prizes;
+        session.step = "waiting_keyword";
+
+        // 显示奖品摘要
+        let prizesSummary = prizes.map(p => `  • ${p.name} × ${p.count}`).join('\n');
+        await ctx.reply(
+            "✅ 奖品已设置\n\n" +
+            "🎁 奖品列表：\n" +
+            prizesSummary + "\n" +
+            `📊 总计：${totalCount} 个名额\n\n` +
             "🔑 请输入参与关键词\n" +
             "⏱️ 你有 120 秒的时间输入\n\n" +
             "💡 用户需要在群组中发送此关键词来参与抽奖"
@@ -96,13 +155,17 @@ export async function handleLotteryDurationCallback(
             return ctx.answerCallbackQuery({ text: "无效的时长", show_alert: true });
     }
 
+    // 计算总中奖人数
+    const totalWinners = session.prizes?.reduce((sum: number, p: { name: string; count: number }) => sum + p.count, 0) || 1;
+
     // 创建抽奖记录
     const [lottery] = await db.insert(lotteries).values({
         groupId: session.groupId,
         title: session.title,
         keyword: session.keyword,
         description: `发送关键词 "${session.keyword}" 参与抽奖`,
-        winnerCount: 1,
+        prizes: session.prizes as any,
+        winnerCount: totalWinners,
         creatorId: userId,
         status: "active",
         scheduledEndTime,
@@ -110,13 +173,24 @@ export async function handleLotteryDurationCallback(
 
     // 在群组中发送抽奖消息
     try {
+        // 生成奖品列表文本
+        let prizesText = "";
+        if (session.prizes && session.prizes.length > 0) {
+            prizesText = "\n🎁 奖品设置：\n";
+            for (const prize of session.prizes) {
+                prizesText += `  • ${prize.name} × ${prize.count}\n`;
+            }
+        }
+
         const message = await ctx.api.sendMessage(
             session.groupId,
             `🎊 *${session.title}*\n\n` +
-            `🔑 参与方式：发送关键词 *${session.keyword}*\n` +
+            `🔑 参与方式：发送关键词 \`${session.keyword}\`\n` +
+            `💡 点击关键词可复制\n` +
             `⏰ 开奖时间：${scheduledEndTime.toLocaleString("zh-CN")}\n` +
             `⏱️ 剩余时间：${durationText}\n` +
-            `👤 发起人：${ctx.from!.first_name}\n\n` +
+            `👤 发起人：${ctx.from!.first_name}` +
+            prizesText + "\n" +
             `当前参与人数：0`,
             { parse_mode: "Markdown" }
         );
@@ -222,14 +296,26 @@ export async function handleLotteryParticipation(
     if (lottery.messageId) {
         try {
             const timeLeft = getTimeLeft(lottery.scheduledEndTime!);
+            
+            // 生成奖品列表文本
+            let prizesText = "";
+            const prizes = (lottery.prizes as any);
+            if (prizes && prizes.length > 0) {
+                prizesText = "\n🎁 奖品设置：\n";
+                for (const prize of prizes) {
+                    prizesText += `  • ${prize.name} × ${prize.count}\n`;
+                }
+            }
+
             await ctx.api.editMessageText(
                 groupId,
                 lottery.messageId,
                 `🎊 *${lottery.title}*\n\n` +
-                `🔑 参与方式：发送关键词 *${lottery.keyword}*\n` +
+                `🔑 参与方式：发送关键词 \`${lottery.keyword}\`\n` +
+                `💡 点击关键词可复制\n` +
                 `⏰ 开奖时间：${lottery.scheduledEndTime?.toLocaleString("zh-CN")}\n` +
-                `⏱️ 剩余时间：${timeLeft}\n` +
-                `👤 发起人：${ctx.from!.first_name}\n\n` +
+                `⏱️ 剩余时间：${timeLeft}` +
+                prizesText + "\n" +
                 `当前参与人数：${participants.length}`,
                 { parse_mode: "Markdown" }
             );
@@ -335,6 +421,16 @@ export async function performDrawing(lotteryId: number, bot: Bot) {
                         `❌ 没有参与者，抽奖已取消`,
                         { parse_mode: "Markdown" }
                     );
+
+                    // 发送取消通知
+                    await bot.api.sendMessage(
+                        lottery.groupId,
+                        `😔 抽奖活动「*${lottery.title}*」因无人参与已取消`,
+                        { 
+                            parse_mode: "Markdown",
+                            reply_to_message_id: lottery.messageId
+                        }
+                    );
                 } catch (e) {
                     console.error("Failed to update message:", e);
                 }
@@ -342,16 +438,33 @@ export async function performDrawing(lotteryId: number, bot: Bot) {
             return;
         }
 
-        // 随机抽取中奖者
-        const winnerCount = Math.min(lottery.winnerCount, participants.length);
+        // 随机抽取中奖者（按奖品分配）
+        const prizes = (lottery.prizes as any) || [{ name: "中奖", count: lottery.winnerCount }];
         const shuffled = [...participants].sort(() => Math.random() - 0.5);
-        const winners = shuffled.slice(0, winnerCount);
+        const winners: Array<{ participant: any; prizeName: string }> = [];
+
+        let currentIndex = 0;
+        for (const prize of prizes) {
+            const prizeWinnerCount = Math.min(prize.count, shuffled.length - currentIndex);
+            for (let i = 0; i < prizeWinnerCount; i++) {
+                if (currentIndex < shuffled.length) {
+                    winners.push({
+                        participant: shuffled[currentIndex],
+                        prizeName: prize.name
+                    });
+                    currentIndex++;
+                }
+            }
+        }
 
         // 更新中奖者
         for (const winner of winners) {
             await db.update(lotteryParticipants)
-                .set({ isWinner: true })
-                .where(eq(lotteryParticipants.id, winner.id));
+                .set({ 
+                    isWinner: true,
+                    prizeName: winner.prizeName
+                })
+                .where(eq(lotteryParticipants.id, winner.participant.id));
         }
 
         // 更新抽奖状态
@@ -359,21 +472,30 @@ export async function performDrawing(lotteryId: number, bot: Bot) {
             .set({ status: "ended", endedAt: new Date() })
             .where(eq(lotteries.id, lotteryId));
 
-        // 获取中奖者信息
-        let winnerText = "";
+        // 获取中奖者信息并按奖品分组
+        const winnersByPrize = new Map<string, Array<{ name: string; username: string; userId: number }>>();
+        
         for (const winner of winners) {
-            const [user] = await db.select().from(users).where(eq(users.id, winner.userId));
+            const [user] = await db.select().from(users).where(eq(users.id, winner.participant.userId));
             const name = user?.firstName || "Unknown";
             const username = user?.username ? `@${user.username}` : "";
-            winnerText += `🏆 ${name} ${username}\n`;
+            
+            if (!winnersByPrize.has(winner.prizeName)) {
+                winnersByPrize.set(winner.prizeName, []);
+            }
+            winnersByPrize.get(winner.prizeName)!.push({ 
+                name, 
+                username, 
+                userId: winner.participant.userId 
+            });
 
             // 私聊通知中奖者
             try {
                 await bot.api.sendMessage(
-                    winner.userId,
+                    winner.participant.userId,
                     `🎉 *恭喜中奖！*\n\n` +
                     `🎊 活动：${lottery.title}\n` +
-                    `🏆 你在抽奖中获胜了！\n\n` +
+                    `🎁 奖品：${winner.prizeName}\n\n` +
                     `请联系活动发起人领取奖品。`,
                     { parse_mode: "Markdown" }
                 );
@@ -382,7 +504,16 @@ export async function performDrawing(lotteryId: number, bot: Bot) {
             }
         }
 
-        // 更新群组消息
+        // 生成中奖名单文本
+        let winnerText = "";
+        for (const [prizeName, prizeWinners] of winnersByPrize) {
+            winnerText += `\n*${prizeName}：*\n`;
+            for (const w of prizeWinners) {
+                winnerText += `🏆 ${w.name} ${w.username}\n`;
+            }
+        }
+
+        // 更新原消息为已结束
         if (lottery.messageId) {
             try {
                 await bot.api.editMessageText(
@@ -393,12 +524,45 @@ export async function performDrawing(lotteryId: number, bot: Bot) {
                     `⏰ 开奖时间：${lottery.scheduledEndTime?.toLocaleString("zh-CN")}\n` +
                     `🏁 实际结束：${new Date().toLocaleString("zh-CN")}\n\n` +
                     `总参与人数：${participants.length}\n\n` +
-                    `*🎉 中奖名单：*\n${winnerText}`,
+                    `查看下方消息了解中奖结果 👇`,
                     { parse_mode: "Markdown" }
                 );
             } catch (e) {
                 console.error("Failed to update message:", e);
             }
+        }
+
+        // 发送新消息公布中奖结果并 @ 中奖用户
+        try {
+            // 构建 @ 中奖用户的文本
+            let mentionText = "";
+            const allWinners: Array<{ name: string; username: string; userId: number }> = [];
+            
+            for (const [prizeName, prizeWinners] of winnersByPrize) {
+                allWinners.push(...prizeWinners);
+            }
+
+            // 使用 text mention 格式 @ 用户
+            const mentions = allWinners.map(w => {
+                return `[${w.name}](tg://user?id=${w.userId})`;
+            }).join(" ");
+
+            await bot.api.sendMessage(
+                lottery.groupId,
+                `🎉🎉🎉 *开奖啦！* 🎉🎉🎉\n\n` +
+                `🎊 活动：*${lottery.title}*\n` +
+                `👥 参与人数：${participants.length}\n\n` +
+                `*🏆 中奖名单：*${winnerText}\n` +
+                `恭喜以上中奖者！🎊\n\n` +
+                `${mentions}\n\n` +
+                `请中奖者联系活动发起人领取奖品！`,
+                { 
+                    parse_mode: "Markdown",
+                    reply_to_message_id: lottery.messageId || undefined
+                }
+            );
+        } catch (e) {
+            console.error("Failed to send winner announcement:", e);
         }
     } catch (error) {
         console.error("Failed to perform drawing:", error);
@@ -431,10 +595,21 @@ export async function showLotteryManagement(ctx: Context, lotteryId: number) {
 
     const timeLeft = lottery.scheduledEndTime ? getTimeLeft(lottery.scheduledEndTime) : "未知";
 
+    // 生成奖品列表文本
+    let prizesText = "";
+    const prizes = (lottery.prizes as any);
+    if (prizes && prizes.length > 0) {
+        prizesText = "\n🎁 奖品设置：\n";
+        for (const prize of prizes) {
+            prizesText += `  • ${prize.name} × ${prize.count}\n`;
+        }
+    }
+
     await ctx.editMessageText(
         `🎊 *${lottery.title}*\n\n` +
         `📍 群组：${groupName}\n` +
-        `🔑 关键词：${lottery.keyword}\n` +
+        `🔑 关键词：${lottery.keyword}` +
+        prizesText +
         `👥 参与人数：${participants.length}\n` +
         `⏰ 计划开奖：${lottery.scheduledEndTime?.toLocaleString("zh-CN")}\n` +
         `⏱️ 剩余时间：${timeLeft}\n` +
@@ -491,13 +666,25 @@ export async function delayLottery(ctx: Context, lotteryId: number, delayDuratio
 
             const timeLeft = getTimeLeft(newEndTime);
 
+            // 生成奖品列表文本
+            let prizesText = "";
+            const prizes = (lottery.prizes as any);
+            if (prizes && prizes.length > 0) {
+                prizesText = "\n🎁 奖品设置：\n";
+                for (const prize of prizes) {
+                    prizesText += `  • ${prize.name} × ${prize.count}\n`;
+                }
+            }
+
             await ctx.api.editMessageText(
                 lottery.groupId,
                 lottery.messageId,
                 `🎊 *${lottery.title}*\n\n` +
-                `🔑 参与方式：发送关键词 *${lottery.keyword}*\n` +
+                `🔑 参与方式：发送关键词 \`${lottery.keyword}\`\n` +
+                `💡 点击关键词可复制\n` +
                 `⏰ 开奖时间：${newEndTime.toLocaleString("zh-CN")} ⏱️ (已延迟)\n` +
-                `⏱️ 剩余时间：${timeLeft}\n\n` +
+                `⏱️ 剩余时间：${timeLeft}` +
+                prizesText + "\n" +
                 `当前参与人数：${participants.length}`,
                 { parse_mode: "Markdown" }
             );

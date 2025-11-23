@@ -46,7 +46,8 @@ export const lotteries = pgTable("lotteries", {
     title: text("title").notNull(), // 抽奖标题
     keyword: text("keyword").notNull(), // 参与关键词
     description: text("description"), // 抽奖描述
-    winnerCount: integer("winner_count").notNull().default(1), // 中奖人数
+    prizes: jsonb("prizes"), // 奖品列表 [{name: string, count: number}]
+    winnerCount: integer("winner_count").notNull().default(1), // 总中奖人数
     creatorId: bigint("creator_id", { mode: "number" }).notNull(), // 创建者 User ID
     messageId: bigint("message_id", { mode: "number" }), // 抽奖消息 ID
     status: text("status").notNull().default("active"), // active, ended, scheduled
@@ -60,5 +61,6 @@ export const lotteryParticipants = pgTable("lottery_participants", {
     lotteryId: integer("lottery_id").notNull(), // 关联的抽奖 ID
     userId: bigint("user_id", { mode: "number" }).notNull(), // 参与者 User ID
     isWinner: boolean("is_winner").default(false), // 是否中奖
+    prizeName: text("prize_name"), // 中奖奖品名称
     createdAt: timestamp("created_at").defaultNow(),
 });

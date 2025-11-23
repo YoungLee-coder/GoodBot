@@ -149,6 +149,68 @@ pnpm db:studio        # 打开 Drizzle Studio（数据库 GUI）
 - `/help` - 显示帮助信息
 - `/login <密码>` - 管理员登录（仅管理员）
 
+### 🎊 抽奖功能
+
+Bot 支持在群组中创建抽奖活动：
+
+1. **创建抽奖**：在群组中使用 `/create_lottery` 命令（仅 Bot 管理员）
+2. **参与抽奖**：用户在群组中发送指定关键词即可参与
+3. **管理抽奖**：在 Bot 私聊中使用 `/viewlottery` 查看和管理进行中的抽奖
+4. **自动开奖**：到达设定时间后自动开奖并公布结果
+
+详细使用说明请查看 [LOTTERY_USAGE_GUIDE.md](./LOTTERY_USAGE_GUIDE.md)
+
+### 🚀 部署到 Vercel
+
+#### 部署步骤
+
+1. **推送代码到 Git 仓库**（GitHub/GitLab/Bitbucket）
+
+2. **在 Vercel 中导入项目**
+   - 访问 [vercel.com](https://vercel.com)
+   - 点击 "Import Project"
+   - 选择你的仓库
+
+3. **配置环境变量**
+   
+   在 Vercel 项目设置中添加以下环境变量：
+   ```
+   DATABASE_URL=你的数据库连接字符串
+   SESSION_SECRET=至少32位的随机字符串
+   CRON_SECRET=用于保护 Cron Job 的密钥（可选）
+   ```
+
+4. **部署完成**
+   
+   Vercel 会自动部署你的项目。部署完成后：
+   - 访问你的域名完成初始化设置
+   - Bot 会通过 Vercel Cron Jobs 每 1 分钟自动检查过期的抽奖
+
+#### Vercel Cron Jobs
+
+项目已配置 Vercel Cron Jobs 来确保抽奖准时开奖：
+
+- **检查频率**：每 1 分钟
+- **功能**：自动检查并处理到期的抽奖活动
+- **配置文件**：`vercel.json`
+- **API 端点**：`/api/cron/check-lotteries`
+
+> **注意**：Vercel 的 Hobby 计划支持 Cron Jobs，但有使用限制。如需更频繁的检查，建议升级到 Pro 计划或使用外部定时服务（如 cron-job.org）定期调用 API。
+
+#### 使用外部 Cron 服务（可选）
+
+如果需要更灵活的定时任务，可以使用外部服务：
+
+1. 注册 [cron-job.org](https://cron-job.org) 或类似服务
+2. 创建定时任务，每 1 分钟调用：
+   ```
+   https://你的域名.vercel.app/api/cron/check-lotteries
+   ```
+3. 添加 Header（如果设置了 CRON_SECRET）：
+   ```
+   Authorization: Bearer 你的CRON_SECRET
+   ```
+
 ### 🤝 贡献
 
 欢迎提交 Issue 和 Pull Request！
@@ -303,6 +365,68 @@ pnpm db:studio        # Open Drizzle Studio (database GUI)
 - `/start` - Show welcome message
 - `/help` - Show help information
 - `/login <password>` - Admin login (admin only)
+
+### 🎊 Lottery Feature
+
+The bot supports creating lottery events in groups:
+
+1. **Create Lottery**: Use `/create_lottery` command in a group (admin only)
+2. **Join Lottery**: Users send the specified keyword in the group to participate
+3. **Manage Lottery**: Use `/viewlottery` in bot private chat to view and manage active lotteries
+4. **Auto Drawing**: Automatically draws winners at the scheduled time
+
+For detailed instructions, see [LOTTERY_USAGE_GUIDE.md](./LOTTERY_USAGE_GUIDE.md)
+
+### 🚀 Deploy to Vercel
+
+#### Deployment Steps
+
+1. **Push code to Git repository** (GitHub/GitLab/Bitbucket)
+
+2. **Import project in Vercel**
+   - Visit [vercel.com](https://vercel.com)
+   - Click "Import Project"
+   - Select your repository
+
+3. **Configure environment variables**
+   
+   Add the following environment variables in Vercel project settings:
+   ```
+   DATABASE_URL=your-database-connection-string
+   SESSION_SECRET=random-string-at-least-32-characters
+   CRON_SECRET=secret-for-cron-job-protection (optional)
+   ```
+
+4. **Deployment complete**
+   
+   Vercel will automatically deploy your project. After deployment:
+   - Visit your domain to complete initial setup
+   - Bot will automatically check expired lotteries every 1 minute via Vercel Cron Jobs
+
+#### Vercel Cron Jobs
+
+The project is configured with Vercel Cron Jobs to ensure timely lottery drawings:
+
+- **Check Frequency**: Every 1 minute
+- **Function**: Automatically check and process expired lottery events
+- **Config File**: `vercel.json`
+- **API Endpoint**: `/api/cron/check-lotteries`
+
+> **Note**: Vercel's Hobby plan supports Cron Jobs but has usage limits. For more frequent checks, consider upgrading to Pro plan or using external cron services (like cron-job.org) to call the API periodically.
+
+#### Using External Cron Service (Optional)
+
+For more flexible scheduled tasks, you can use external services:
+
+1. Register at [cron-job.org](https://cron-job.org) or similar service
+2. Create a scheduled task to call every 1 minute:
+   ```
+   https://your-domain.vercel.app/api/cron/check-lotteries
+   ```
+3. Add Header (if CRON_SECRET is set):
+   ```
+   Authorization: Bearer your-CRON_SECRET
+   ```
 
 ### 🤝 Contributing
 

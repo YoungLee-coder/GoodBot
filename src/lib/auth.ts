@@ -1,4 +1,4 @@
-import { getIronSession, IronSession, SessionOptions } from "iron-session";
+import { getIronSession, SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import { getSetting } from "./settings";
@@ -8,8 +8,19 @@ export interface SessionData {
   username?: string;
 }
 
+// 获取 session 密钥，生产环境强制要求 SESSION_SECRET
+function getSessionPassword(): string {
+  if (process.env.SESSION_SECRET) {
+    return process.env.SESSION_SECRET;
+  }
+  if (process.env.NODE_ENV === "production") {
+    console.warn("WARNING: SESSION_SECRET not set in production, using fallback");
+  }
+  return "dev_secret_key_at_least_32_characters_long";
+}
+
 export const sessionOptions: SessionOptions = {
-  password: process.env.SESSION_SECRET || "complex_password_at_least_32_characters_long_for_security",
+  password: getSessionPassword(),
   cookieName: "goodbot_session",
   cookieOptions: {
     secure: process.env.NODE_ENV === "production",

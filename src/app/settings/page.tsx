@@ -219,8 +219,9 @@ export default function SettingsPage() {
                                     } else {
                                         alert(t.settings.webhookFailed.replace('{error}', data.error));
                                     }
-                                } catch (e: any) {
-                                    alert(t.settings.webhookError.replace('{error}', e.message));
+                                } catch (e) {
+                                    const message = e instanceof Error ? e.message : "Unknown error";
+                                    alert(t.settings.webhookError.replace('{error}', message));
                                 } finally {
                                     setLoading(false);
                                 }

@@ -1,15 +1,18 @@
-import { NextResponse } from "next/server";
 import { getSetting } from "@/lib/settings";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { requireAuth, apiSuccess, apiError } from "@/lib/api-utils";
 
 export async function GET() {
+  const authError = await requireAuth();
+  if (authError) return authError;
+
   try {
     const adminChatIdStr = await getSetting("admin_chat_id");
     
     if (!adminChatIdStr) {
-      return NextResponse.json({ 
+      return apiSuccess({ 
         isLinked: false,
         message: "No admin linked yet" 
       });
@@ -24,7 +27,7 @@ export async function GET() {
       .where(eq(users.id, adminChatId));
 
     if (!adminUser) {
-      return NextResponse.json({
+      return apiSuccess({
         isLinked: true,
         chatId: adminChatId,
         username: null,
@@ -33,7 +36,7 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       isLinked: true,
       chatId: adminChatId,
       username: adminUser.username,
@@ -42,9 +45,6 @@ export async function GET() {
     });
   } catch (error) {
     console.error("Failed to get admin info:", error);
-    return NextResponse.json(
-      { error: "Failed to get admin info" },
-      { status: 500 }
-    );
+    return apiError("Failed to get admin info", 500);
   }
 }

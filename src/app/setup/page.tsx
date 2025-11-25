@@ -5,30 +5,32 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { initializeApp } from "./actions";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { LanguageSwitcher } from "@/components/language-switcher";
 
+// 获取初始 webhook URL
+function getInitialWebhookUrl() {
+    if (typeof window !== "undefined") {
+        return window.location.origin;
+    }
+    return "";
+}
+
 export default function SetupPage() {
-    const [webhookUrl, setWebhookUrl] = useState("");
+    const [webhookUrl, setWebhookUrl] = useState(getInitialWebhookUrl);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState("");
     const { t } = useLanguage();
-
-    useEffect(() => {
-        // 自动填充当前域名作为 webhook URL
-        if (typeof window !== "undefined") {
-            setWebhookUrl(window.location.origin);
-        }
-    }, []);
 
     async function handleSubmit(formData: FormData) {
         setIsSubmitting(true);
         setError("");
         try {
             await initializeApp(formData);
-        } catch (err: any) {
-            setError(err.message || t.setup.initFailed.replace('{error}', ''));
+        } catch (err) {
+            const message = err instanceof Error ? err.message : "Unknown error";
+            setError(message || t.setup.initFailed.replace('{error}', ''));
             setIsSubmitting(false);
         }
     }

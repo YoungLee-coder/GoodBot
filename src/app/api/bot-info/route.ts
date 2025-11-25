@@ -1,14 +1,15 @@
-import { NextResponse } from "next/server";
 import { getBot } from "@/lib/bot";
+import { requireAuth, apiSuccess, apiError } from "@/lib/api-utils";
 
 export async function GET() {
+  const authError = await requireAuth();
+  if (authError) return authError;
+
   try {
     const bot = await getBot();
     
     if (!bot) {
-      return NextResponse.json({ 
-        error: "Bot not initialized" 
-      }, { status: 500 });
+      return apiError("Bot not initialized", 500);
     }
 
     // 获取 Bot 信息
@@ -17,7 +18,7 @@ export async function GET() {
     // 获取 Webhook 信息
     const webhookInfo = await bot.api.getWebhookInfo();
 
-    return NextResponse.json({
+    return apiSuccess({
       id: botInfo.id,
       username: botInfo.username,
       firstName: botInfo.first_name,
@@ -32,11 +33,9 @@ export async function GET() {
         lastErrorMessage: webhookInfo.last_error_message,
       },
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Failed to get bot info:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to get bot info" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Failed to get bot info";
+    return apiError(message, 500);
   }
 }

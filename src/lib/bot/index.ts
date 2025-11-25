@@ -2,7 +2,7 @@ import { Bot, InlineKeyboard } from "grammy";
 import { getSetting, setSetting } from "@/lib/settings";
 import { db } from "@/lib/db";
 import { users, messages, messageMaps, groups, lotteries, lotteryParticipants } from "@/lib/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import {
     handleLotteryCreationMessage,
@@ -11,7 +11,6 @@ import {
     showLotteryManagement,
     delayLottery,
     endLotteryNow,
-    performDrawing,
 } from "./lottery-handler";
 import { restoreScheduledDrawings } from "./lottery-scheduler";
 
@@ -270,7 +269,7 @@ export async function getBot() {
                 "✅ 已在私聊中开始创建抽奖流程，请查看与 Bot 的私聊。\n" +
                 "✅ Lottery creation started in private chat."
             );
-        } catch (error) {
+        } catch {
             lotteryCreationSessions.delete(ctx.from!.id);
             await ctx.reply(
                 "❌ 无法发送私聊消息。请先在 Bot 私聊中发送 /start。\n" +
@@ -526,10 +525,10 @@ export async function getBot() {
                 return ctx.answerCallbackQuery({ text: "暂无参与者", show_alert: true });
             }
 
-            // 获取参与者信息
+            // 获取参与者信息（批量查询）
             const userIds = participants.map(p => p.userId);
             const participantUsers = await db.select().from(users).where(
-                eq(users.id, userIds[0]) // 简化查询，实际应该用 IN
+                inArray(users.id, userIds)
             );
 
             let message = `📊 *参与者列表* (${participants.length}人)\n\n`;
@@ -683,7 +682,7 @@ export async function getBot() {
                         // 尝试删除用户的密码消息（为了安全）
                         try {
                             await ctx.deleteMessage();
-                        } catch (e) {
+                        } catch {
                             // 如果无法删除，忽略错误
                         }
                         
@@ -727,7 +726,7 @@ export async function getBot() {
             chatId: chatId,
             userId: senderId,
             text: ctx.message.text || "[Media/Other]",
-            raw: ctx.message as any,
+            raw: ctx.message as unknown as Record<string, unknown>,
         });
 
         // 3. 检查是否是抽奖参与关键词（群组消息）
@@ -760,12 +759,12 @@ export async function getBot() {
                             chatId: targetChatId,
                             userId: senderId, // Admin's ID
                             text: ctx.message.text || "[Media]",
-                            raw: ctx.message as any,
+                            raw: ctx.message as unknown as Record<string, unknown>,
                         });
 
                         await ctx.reply("✅ Sent.");
-                    } catch (e) {
-                        console.error(e);
+                    } catch (error) {
+                        console.error("Failed to send message:", error);
                         await ctx.reply("❌ Failed to send. User might have blocked the bot.");
                     }
                 } else {

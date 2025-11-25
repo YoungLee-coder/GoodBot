@@ -36,7 +36,7 @@ export default function LoginPage() {
       } else {
         setError(data.error || t.login.loginFailed);
       }
-    } catch (err) {
+    } catch {
       setError(t.login.loginError);
     } finally {
       setLoading(false);

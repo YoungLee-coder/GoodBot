@@ -16,7 +16,7 @@ type AdminInfo = {
 
 export default function Dashboard() {
   const { t } = useLanguage();
-  const [stats, setStats] = useState({ users: 0, groups: 0, messages: 0 });
+  const [stats] = useState({ users: 0, groups: 0, messages: 0 });
   const [adminInfo, setAdminInfo] = useState<AdminInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [unbinding, setUnbinding] = useState(false);

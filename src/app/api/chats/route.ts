@@ -1,9 +1,12 @@
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import { desc } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { requireAuth, apiSuccess, apiError } from "@/lib/api-utils";
 
 export async function GET() {
+    const authError = await requireAuth();
+    if (authError) return authError;
+
     try {
         // Fetch all users, ordered by creation time (newest first)
         // Ideally we should order by last message time, but for MVP this is fine.
@@ -15,9 +18,9 @@ export async function GET() {
             id: user.id.toString(),
         }));
 
-        return NextResponse.json(serializedUsers);
+        return apiSuccess(serializedUsers);
     } catch (error) {
         console.error("Failed to fetch chats:", error);
-        return new NextResponse("Internal Server Error", { status: 500 });
+        return apiError("Internal Server Error", 500);
     }
 }

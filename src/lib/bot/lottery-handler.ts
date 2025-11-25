@@ -3,11 +3,24 @@ import { db } from "@/lib/db";
 import { lotteries, lotteryParticipants, groups, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 
+// 类型定义
+type Prize = { name: string; count: number };
+type LotteryCreationStep = "waiting_title" | "waiting_prize_name" | "waiting_prize_count" | "waiting_keyword" | "waiting_duration";
+export type LotteryCreationSession = {
+    step: LotteryCreationStep;
+    groupId: number;
+    title?: string;
+    prizes?: Prize[];
+    currentPrizeName?: string;
+    keyword?: string;
+    timestamp: number;
+};
+
 // 处理抽奖创建流程中的消息
 export async function handleLotteryCreationMessage(
     ctx: Context,
-    session: any,
-    lotteryCreationSessions: Map<number, any>
+    session: LotteryCreationSession,
+    lotteryCreationSessions: Map<number, LotteryCreationSession>
 ) {
     const userId = ctx.from!.id;
     const text = ctx.message?.text?.trim();
@@ -114,7 +127,7 @@ export async function handleLotteryCreationMessage(
 export async function handleLotteryDurationCallback(
     ctx: Context,
     duration: string,
-    lotteryCreationSessions: Map<number, any>,
+    lotteryCreationSessions: Map<number, LotteryCreationSession>,
     bot: Bot
 ) {
     const userId = ctx.from!.id;
@@ -152,10 +165,10 @@ export async function handleLotteryDurationCallback(
     // 创建抽奖记录
     const [lottery] = await db.insert(lotteries).values({
         groupId: session.groupId,
-        title: session.title,
-        keyword: session.keyword,
+        title: session.title!,
+        keyword: session.keyword!,
         description: `发送关键词 "${session.keyword}" 参与抽奖`,
-        prizes: session.prizes as any,
+        prizes: session.prizes as Prize[],
         winnerCount: totalWinners,
         creatorId: userId,
         status: "active",
@@ -266,7 +279,7 @@ export async function handleLotteryParticipation(
                 `ℹ️ 你已经参与过抽奖活动「${lottery.title}」了\n\n` +
                 `⏰ 开奖时间：${lottery.scheduledEndTime?.toLocaleString("zh-CN")}`
             );
-        } catch (e) {
+        } catch {
             // 无法发送私聊，忽略
         }
         return true;
@@ -290,7 +303,7 @@ export async function handleLotteryParticipation(
             
             // 生成奖品列表文本
             let prizesText = "";
-            const prizes = (lottery.prizes as any);
+            const prizes = lottery.prizes as Prize[] | null;
             if (prizes && prizes.length > 0) {
                 prizesText = "\n🎁 奖品设置：\n";
                 for (const prize of prizes) {
@@ -310,7 +323,7 @@ export async function handleLotteryParticipation(
                 `当前参与人数：${participants.length}`,
                 { parse_mode: "Markdown" }
             );
-        } catch (e) {
+        } catch {
             // 消息可能被删除，忽略
         }
     }
@@ -325,7 +338,7 @@ export async function handleLotteryParticipation(
             `祝你好运！🍀`,
             { parse_mode: "Markdown" }
         );
-    } catch (e) {
+    } catch {
         // 无法发送私聊，忽略
     }
 
@@ -430,9 +443,9 @@ export async function performDrawing(lotteryId: number, bot: Bot) {
         }
 
         // 随机抽取中奖者（按奖品分配）
-        const prizes = (lottery.prizes as any) || [{ name: "中奖", count: lottery.winnerCount }];
+        const prizes = (lottery.prizes as Prize[] | null) || [{ name: "中奖", count: lottery.winnerCount }];
         const shuffled = [...participants].sort(() => Math.random() - 0.5);
-        const winners: Array<{ participant: any; prizeName: string }> = [];
+        const winners: Array<{ participant: typeof participants[0]; prizeName: string }> = [];
 
         let currentIndex = 0;
         for (const prize of prizes) {
@@ -497,11 +510,11 @@ export async function performDrawing(lotteryId: number, bot: Bot) {
 
         // 生成中奖名单文本
         let winnerText = "";
-        const lotteryPrizes = (lottery.prizes as any) || [];
+        const lotteryPrizes = (lottery.prizes as Prize[] | null) || [];
         
         for (const [prizeName, prizeWinners] of winnersByPrize) {
             // 找到对应奖品的数量
-            const prizeInfo = lotteryPrizes.find((p: any) => p.name === prizeName);
+            const prizeInfo = lotteryPrizes.find((p) => p.name === prizeName);
             const prizeCount = prizeInfo ? prizeInfo.count : prizeWinners.length;
             
             winnerText += `\n*${prizeName}（共 ${prizeCount} 份）：*\n`;
@@ -532,10 +545,9 @@ export async function performDrawing(lotteryId: number, bot: Bot) {
         // 发送新消息公布中奖结果并 @ 中奖用户
         try {
             // 构建 @ 中奖用户的文本
-            let mentionText = "";
             const allWinners: Array<{ name: string; username: string; userId: number }> = [];
             
-            for (const [prizeName, prizeWinners] of winnersByPrize) {
+            for (const [, prizeWinners] of winnersByPrize) {
                 allWinners.push(...prizeWinners);
             }
 
@@ -594,10 +606,10 @@ export async function showLotteryManagement(ctx: Context, lotteryId: number) {
 
     // 生成奖品列表文本
     let prizesText = "";
-    const prizes = (lottery.prizes as any);
-    if (prizes && prizes.length > 0) {
+    const lotteryPrizesForDisplay = lottery.prizes as Prize[] | null;
+    if (lotteryPrizesForDisplay && lotteryPrizesForDisplay.length > 0) {
         prizesText = "\n🎁 奖品设置：\n";
-        for (const prize of prizes) {
+        for (const prize of lotteryPrizesForDisplay) {
             prizesText += `  • ${prize.name} × ${prize.count}\n`;
         }
     }
@@ -665,10 +677,10 @@ export async function delayLottery(ctx: Context, lotteryId: number, delayDuratio
 
             // 生成奖品列表文本
             let prizesText = "";
-            const prizes = (lottery.prizes as any);
-            if (prizes && prizes.length > 0) {
+            const delayPrizes = lottery.prizes as Prize[] | null;
+            if (delayPrizes && delayPrizes.length > 0) {
                 prizesText = "\n🎁 奖品设置：\n";
-                for (const prize of prizes) {
+                for (const prize of delayPrizes) {
                     prizesText += `  • ${prize.name} × ${prize.count}\n`;
                 }
             }
@@ -685,8 +697,8 @@ export async function delayLottery(ctx: Context, lotteryId: number, delayDuratio
                 `当前参与人数：${participants.length}`,
                 { parse_mode: "Markdown" }
             );
-        } catch (e) {
-            console.error("Failed to update message:", e);
+        } catch (error) {
+            console.error("Failed to update message:", error);
         }
     }
 

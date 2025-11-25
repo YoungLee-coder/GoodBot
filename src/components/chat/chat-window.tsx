@@ -18,27 +18,45 @@ interface ChatWindowProps {
 export function ChatWindow({ chatId }: ChatWindowProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const isInitialRef = useRef(true);
 
     useEffect(() => {
-        setMessages([]); // Clear previous messages
-        fetch(`/api/chats/${chatId}/messages`)
-            .then((res) => res.json())
-            .then((data) => {
+        const controller = new AbortController();
+        
+        async function fetchMessages() {
+            try {
+                const res = await fetch(`/api/chats/${chatId}/messages`, {
+                    signal: controller.signal
+                });
+                const data = await res.json();
                 setMessages(data);
-                // Scroll to bottom
-                setTimeout(() => {
-                    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-                }, 100);
-            });
+                if (isInitialRef.current) {
+                    isInitialRef.current = false;
+                    // Scroll to bottom on initial load
+                    setTimeout(() => {
+                        scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+                    }, 100);
+                }
+            } catch (error) {
+                if (error instanceof Error && error.name !== 'AbortError') {
+                    console.error("Failed to fetch messages:", error);
+                }
+            }
+        }
 
-        // Polling for new messages (simple implementation)
-        const interval = setInterval(() => {
-            fetch(`/api/chats/${chatId}/messages`)
-                .then((res) => res.json())
-                .then((data) => setMessages(data));
-        }, 3000);
+        // Reset for new chat
+        isInitialRef.current = true;
+        
+        // Initial fetch
+        fetchMessages();
 
-        return () => clearInterval(interval);
+        // Polling for new messages
+        const interval = setInterval(fetchMessages, 3000);
+
+        return () => {
+            controller.abort();
+            clearInterval(interval);
+        };
     }, [chatId]);
 
     return (

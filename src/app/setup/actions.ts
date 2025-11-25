@@ -42,9 +42,10 @@ export async function initializeApp(formData: FormData) {
             { command: "lottery", description: "创建抽奖活动（仅管理员）" },
         ]);
 
-    } catch (error: any) {
+    } catch (error) {
         console.error("初始化失败:", error);
-        throw new Error(`初始化失败: ${error.message}`);
+        const message = error instanceof Error ? error.message : "Unknown error";
+        throw new Error(`初始化失败: ${message}`);
     }
 
     redirect("/");

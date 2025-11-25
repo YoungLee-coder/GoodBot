@@ -23,9 +23,10 @@ export async function GET(request: Request) {
             webhookUrl: webhookUrl,
             webhookInfo: info,
         });
-    } catch (error: any) {
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Unknown error";
         return NextResponse.json(
-            { error: error.message },
+            { error: message },
             { status: 500 }
         );
     }

@@ -6,7 +6,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { isAppInitialized } from "@/lib/settings";
 import { isAuthenticated } from "@/lib/auth";
 import { LanguageProvider } from "@/components/language-provider";
-import { redirect } from "next/navigation";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

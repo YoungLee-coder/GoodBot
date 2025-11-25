@@ -1,74 +1,16 @@
 import { Bot } from "grammy";
 import { db } from "@/lib/db";
 import { lotteries } from "@/lib/db/schema";
-import { eq, and, lt } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { scheduleDrawing, performDrawing } from "./lottery-handler";
 
-// 定期检查的间隔（1分钟）
-const CHECK_INTERVAL = 1 * 60 * 1000;
-let checkInterval: NodeJS.Timeout | null = null;
-
-// 检查并处理到期的抽奖
-async function checkExpiredLotteries(bot: Bot) {
-    try {
-        const now = new Date();
-        
-        // 查找所有已到期但仍处于活跃状态的抽奖
-        const expiredLotteries = await db
-            .select()
-            .from(lotteries)
-            .where(
-                and(
-                    eq(lotteries.status, "active"),
-                    lt(lotteries.scheduledEndTime, now)
-                )
-            );
-
-        if (expiredLotteries.length > 0) {
-            console.log(`Found ${expiredLotteries.length} expired lotteries, drawing now...`);
-            
-            for (const lottery of expiredLotteries) {
-                console.log(`Drawing lottery ${lottery.id}: ${lottery.title}`);
-                await performDrawing(lottery.id, bot);
-            }
-        }
-    } catch (error) {
-        console.error("Failed to check expired lotteries:", error);
-    }
-}
-
-// 启动定期检查
-export function startLotteryChecker(bot: Bot) {
-    // 清除已存在的定时器
-    if (checkInterval) {
-        clearInterval(checkInterval);
-    }
-
-    // 立即检查一次
-    checkExpiredLotteries(bot).catch(err => 
-        console.error("Failed to check expired lotteries:", err)
-    );
-
-    // 设置定期检查
-    checkInterval = setInterval(() => {
-        checkExpiredLotteries(bot).catch(err => 
-            console.error("Failed to check expired lotteries:", err)
-        );
-    }, CHECK_INTERVAL);
-
-    console.log(`Lottery checker started, checking every ${CHECK_INTERVAL / 60000} minute(s)`);
-}
-
-// 停止定期检查
-export function stopLotteryChecker() {
-    if (checkInterval) {
-        clearInterval(checkInterval);
-        checkInterval = null;
-        console.log("Lottery checker stopped");
-    }
-}
-
-// 恢复所有待开奖的定时任务
+/**
+ * 恢复所有待开奖的定时任务
+ * 
+ * 注意：内存中的 setTimeout 在 Serverless 环境下不可靠，
+ * 主要依赖 Vercel Cron Job (/api/cron/check-lotteries) 作为保底机制。
+ * 这里的 setTimeout 仅作为活跃进程期间的优化。
+ */
 export async function restoreScheduledDrawings(bot: Bot) {
     try {
         console.log("Restoring scheduled lottery drawings...");
@@ -85,7 +27,7 @@ export async function restoreScheduledDrawings(bot: Bot) {
         for (const lottery of activeLotteries) {
             if (lottery.scheduledEndTime) {
                 if (lottery.scheduledEndTime > now) {
-                    // 还未到开奖时间，恢复定时任务
+                    // 还未到开奖时间，恢复定时任务（作为优化，非必需）
                     scheduleDrawing(lottery.id, lottery.scheduledEndTime, bot);
                     restoredCount++;
                 } else {
@@ -97,9 +39,7 @@ export async function restoreScheduledDrawings(bot: Bot) {
         }
 
         console.log(`Restored ${restoredCount} scheduled lottery drawings`);
-        
-        // 启动定期检查器
-        startLotteryChecker(bot);
+        console.log("Note: Vercel Cron Job serves as the primary mechanism for lottery drawing");
     } catch (error) {
         console.error("Failed to restore scheduled drawings:", error);
     }

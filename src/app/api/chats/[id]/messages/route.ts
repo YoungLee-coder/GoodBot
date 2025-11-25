@@ -1,18 +1,21 @@
 import { db } from "@/lib/db";
 import { messages } from "@/lib/db/schema";
-import { eq, asc, or } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { eq, asc } from "drizzle-orm";
+import { requireAuth, apiSuccess, apiError } from "@/lib/api-utils";
 
 export async function GET(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    const authError = await requireAuth();
+    if (authError) return authError;
+
     try {
         const { id } = await params;
         const chatId = parseInt(id);
 
         if (isNaN(chatId)) {
-            return new NextResponse("Invalid Chat ID", { status: 400 });
+            return apiError("Invalid Chat ID", 400);
         }
 
         // Fetch messages for this chat
@@ -32,9 +35,9 @@ export async function GET(
             replyToId: msg.replyToId?.toString(),
         }));
 
-        return NextResponse.json(serializedMessages);
+        return apiSuccess(serializedMessages);
     } catch (error) {
         console.error("Failed to fetch messages:", error);
-        return new NextResponse("Internal Server Error", { status: 500 });
+        return apiError("Internal Server Error", 500);
     }
 }

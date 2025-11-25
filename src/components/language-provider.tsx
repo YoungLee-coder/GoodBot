@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode, useSyncExternalStore } from "react";
 import { Locale, getTranslation } from "@/lib/i18n";
 
 type LanguageContextType = {
@@ -11,18 +11,40 @@ type LanguageContextType = {
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<Locale>("zh");
-  const [t, setT] = useState(() => getTranslation("zh"));
+// 从 localStorage 获取初始语言设置
+function getStoredLocale(): Locale {
+  if (typeof window === "undefined") return "zh";
+  const saved = localStorage.getItem("locale");
+  if (saved === "zh" || saved === "en") return saved;
+  return "zh";
+}
 
-  useEffect(() => {
-    // 从 localStorage 读取语言设置
-    const saved = localStorage.getItem("locale") as Locale;
-    if (saved && (saved === "zh" || saved === "en")) {
-      setLocaleState(saved);
-      setT(getTranslation(saved));
-    }
-  }, []);
+// 用于 SSR 的订阅函数
+function subscribe(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
+function getSnapshot(): Locale {
+  return getStoredLocale();
+}
+
+function getServerSnapshot(): Locale {
+  return "zh";
+}
+
+export function LanguageProvider({ children }: { children: ReactNode }) {
+  const storedLocale = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const [locale, setLocaleState] = useState<Locale>(storedLocale);
+  const [t, setT] = useState(() => getTranslation(storedLocale));
+
+  // 当 storedLocale 变化时同步更新（通过 storage 事件触发）
+  if (storedLocale !== locale) {
+    setLocaleState(storedLocale);
+    setT(getTranslation(storedLocale));
+  }
+
+
 
   const setLocale = (newLocale: Locale) => {
     setLocaleState(newLocale);

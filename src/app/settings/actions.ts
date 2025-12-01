@@ -1,6 +1,7 @@
 "use server";
 
 import { setSetting } from "@/lib/settings";
+import { resetBot } from "@/lib/bot";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
@@ -9,6 +10,10 @@ export async function updateBotToken(formData: FormData) {
     if (!token) throw new Error("Token required");
 
     await setSetting("bot_token", token);
+    
+    // 重置 bot 实例，使其使用新的 token
+    resetBot();
+    
     revalidatePath("/settings");
 }
 

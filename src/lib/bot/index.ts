@@ -92,6 +92,13 @@ export async function forceUpdateBotCommands(hasAdmin: boolean) {
     await updateBotCommands(hasAdmin);
 }
 
+// 重置 bot 实例（用于更新 token 后）
+export function resetBot() {
+    bot = null;
+    isInitializing = false;
+    lastCommandsUpdate = 0;
+}
+
 export async function getBot() {
     if (bot) return bot;
 
